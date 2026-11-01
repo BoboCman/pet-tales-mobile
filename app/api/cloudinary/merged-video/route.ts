@@ -29,6 +29,32 @@ interface MergedVideoResult {
 }
 
 /**
+ * Turn anything thrown into a readable message.
+ * The Cloudinary SDK rejects with plain objects like { message, http_code } rather than
+ * Error instances, so `error instanceof Error` alone throws away the real reason.
+ */
+function describeError(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message
+  if (typeof error === "string" && error) return error
+  if (error && typeof error === "object") {
+    const e = error as any
+    const message = e.message || e.error?.message
+    const httpCode = e.http_code ?? e.error?.http_code
+    if (message) return httpCode ? `${message} (HTTP ${httpCode})` : String(message)
+    try {
+      const json = JSON.stringify(error)
+      if (json && json !== "{}") return json.slice(0, 500)
+    } catch {
+      // fall through
+    }
+  }
+  return fallback
+}
+
+// A merge that has been "processing" longer than this is treated as dead (maxDuration is 300s).
+const STALE_PROCESSING_MS = 6 * 60 * 1000
+
+/**
  * Retry wrapper for Cloudinary operations with exponential backoff
  * Only retries on 502 server errors, not client errors
  */
@@ -919,6 +945,8 @@ async function createMergedVideoWithCloudinarySubtitles(
   audioUrl: string,
   entryId: string,
 ): Promise<MergedVideoResult> {
+  // Tracks which step is running so a failure says where it happened.
+  let currentStep = "STEP 1 (audio upload / captions)"
   try {
     console.log("🎬 8-STEP PROCESS: Creating merged video with WHISPER HYBRID SUBTITLE OVERLAY...")
     console.log("📹 Video Public ID:", videoPublicId)
@@ -959,6 +987,7 @@ async function createMergedVideoWithCloudinarySubtitles(
     console.log("⏱️ Audio duration:", audioDuration, "seconds")
 
     // STEP 2: Get video duration and calculate loops
+    currentStep = "STEP 2 (video duration)"
     console.log("🔹 STEP 2: Getting video duration and calculating loops...")
     const videoDuration = await getVideoDuration(videoPublicId)
     const loopCount = Math.max(1, Math.ceil(audioDuration / videoDuration))
@@ -974,6 +1003,7 @@ async function createMergedVideoWithCloudinarySubtitles(
     console.log("🔗 Original video URL:", originalVideoUrl.substring(0, 100) + "...")
 
     // STEP 4: Create intermediate looped video with retry logic and eager_async support
+    currentStep = "STEP 4 (looped intermediate video)"
     console.log("🔹 STEP 4: Creating intermediate looped video...")
     const intermediatePublicId = `pawsense/intermediate/entry_${entryId}_looped`
 
@@ -1002,6 +1032,7 @@ async function createMergedVideoWithCloudinarySubtitles(
     console.log("  - Size:", intermediateResult.bytes, "bytes")
 
     // STEP 5: Check for Whisper HYBRID captions
+    currentStep = "STEP 5 (wait for captions)"
     console.log("🔹 STEP 5: Checking for Whisper HYBRID captions...")
 
     const captionCheck = await waitForCaptionsWithPolling(entryId, 120000)
@@ -1086,6 +1117,7 @@ async function createMergedVideoWithCloudinarySubtitles(
 
     // STEP 6: Apply final transformation with retry logic and eager_async support
     const finalPublicId = `pawsense/merged/entry_${entryId}_final`
+    currentStep = "STEP 6 (final merge with audio + subtitles)"
 
     console.log("🔹 STEP 6: Applying final transformation with WHISPER HYBRID SUBTITLES...")
     console.log("  - Source URL:", intermediateResult.secure_url?.substring(0, 100) + "...")
@@ -1155,11 +1187,10 @@ async function createMergedVideoWithCloudinarySubtitles(
       }
     }
   } catch (error) {
-    console.error("❌ 8-step process with Whisper HYBRID subtitles failed:", error)
+    console.error(`❌ 8-step process failed at ${currentStep}:`, error)
     return {
       success: false,
-      error:
-        error instanceof Error ? error.message : "8-step merged video creation with Whisper HYBRID subtitles failed",
+      error: `${currentStep}: ${describeError(error, "8-step merged video creation with Whisper HYBRID subtitles failed")}`,
     }
   }
 }
@@ -1227,8 +1258,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Missing required data: ${missing.join(", ")}` }, { status: 400 })
     }
 
-    // Update status to processing
-    await supabaseAdmin
+    // Claim the job atomically. Several routes (TTS, compression webhook, Cloudinary webhook,
+    // caption retry, admin recovery) can trigger a merge for the same entry at nearly the same
+    // time. Without this, two runs overwrite the same Cloudinary assets, and the first run's
+    // cleanup deletes the audio and compressed video the second run is still using.
+    const staleBefore = new Date(Date.now() - STALE_PROCESSING_MS).toISOString()
+    const { data: claimed, error: claimError } = await supabaseAdmin
       .from("diary_entries")
       .update({
         merged_video_status: "processing",
@@ -1236,6 +1271,23 @@ export async function POST(request: NextRequest) {
         merged_video_error: null,
       })
       .eq("id", entryId)
+      .or(
+        `merged_video_status.is.null,merged_video_status.neq.processing,merged_processing_started_at.is.null,merged_processing_started_at.lt."${staleBefore}"`,
+      )
+      .select("id")
+
+    if (claimError) {
+      console.error("❌ Failed to claim merge job:", claimError)
+      return NextResponse.json({ error: `Failed to claim merge job: ${claimError.message}` }, { status: 500 })
+    }
+
+    if (!claimed || claimed.length === 0) {
+      console.log("⏭️ Merge already in progress for this entry, skipping duplicate trigger")
+      return NextResponse.json(
+        { skipped: true, entryId, reason: "Merge already in progress for this entry" },
+        { status: 409 },
+      )
+    }
 
     console.log("💾 Status updated to processing")
 
@@ -1407,8 +1459,7 @@ export async function POST(request: NextRequest) {
         .from("diary_entries")
         .update({
           merged_video_status: "failed",
-          merged_video_error:
-            error instanceof Error ? error.message : "8-step process with Whisper HYBRID subtitles failed",
+          merged_video_error: describeError(error, "8-step process with Whisper HYBRID subtitles failed"),
           merged_processing_completed_at: new Date().toISOString(),
         })
         .eq("id", entryId)
@@ -1419,7 +1470,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: "8-step process with Whisper HYBRID subtitles failed",
-        details: error instanceof Error ? error.message : "Unknown error",
+        details: describeError(error, "Unknown error"),
         processingTime: `${processingTime}ms`,
       },
       { status: 500 },
