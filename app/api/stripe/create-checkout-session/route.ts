@@ -1,0 +1,165 @@
+import { NextResponse } from "next/server"
+import { stripe } from "@/lib/stripe"
+import { createClient } from "@/lib/supabase/server"
+import { formatStripeError } from "@/lib/stripe-errors"
+import { validatePriceIds } from "@/lib/pricing-config"
+import type { CheckoutSessionRequest, CheckoutSessionResponse } from "@/types/stripe"
+import { getAppBaseUrl } from "@/lib/utils/app-url"
+
+export const dynamic = "force-dynamic"
+
+export async function POST(request: Request) {
+  try {
+    // 1. Authenticate user
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json(
+        {
+          error: "Unauthorized",
+          message: "Please sign in to subscribe to a plan",
+        },
+        { status: 401 },
+      )
+    }
+
+    // 2. Parse request body
+    const body: CheckoutSessionRequest = await request.json()
+    const { priceId } = body
+
+    if (!priceId) {
+      return NextResponse.json(
+        {
+          error: "Price ID is required",
+          message: "Please select a plan to continue",
+        },
+        { status: 400 },
+      )
+    }
+
+    // 3. Validate priceId against known price IDs
+    const validPriceIds = validatePriceIds()
+
+    if (!validPriceIds.includes(priceId)) {
+      return NextResponse.json(
+        {
+          error: "Invalid price ID",
+          message: "The selected plan is not valid",
+        },
+        { status: 400 },
+      )
+    }
+
+    // 4. Get user from database
+    const { data: userData, error: userError } = await supabase
+      .from("users")
+      .select("id, email, stripe_customer_id, full_name, name")
+      .eq("id", user.id)
+      .single()
+
+    if (userError || !userData) {
+      console.error("[Checkout] Error fetching user:", userError)
+      return NextResponse.json(
+        {
+          error: "User not found",
+          message: "Could not find your account. Please try logging in again.",
+        },
+        { status: 404 },
+      )
+    }
+
+    // 5. Create or retrieve Stripe customer
+    let customerId = userData.stripe_customer_id
+
+    if (!customerId) {
+      // Create new Stripe customer
+      const customer = await stripe.customers.create({
+        email: userData.email,
+        name: userData.full_name || userData.name || userData.email?.split("@")[0],
+        metadata: {
+          userId: userData.id,
+        },
+      })
+
+      customerId = customer.id
+
+      console.log("[Checkout] Created Stripe customer:", customerId)
+
+      // Save customer ID to database
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({ stripe_customer_id: customerId })
+        .eq("id", userData.id)
+
+      if (updateError) {
+        console.error("[Checkout] Error saving Stripe customer ID:", updateError)
+        // Continue anyway - customer is created in Stripe
+      }
+    }
+
+    // 6. Get origin for redirect URLs
+    const origin = request.headers.get("origin") || getAppBaseUrl("http://localhost:3000")
+
+    console.log("[Checkout] Creating checkout session:", {
+      customerId,
+      priceId,
+      userId: userData.id,
+    })
+
+    // 7. Create checkout session
+    const session = await stripe.checkout.sessions.create({
+      customer: customerId,
+      mode: "subscription",
+      payment_method_types: ["card"],
+      line_items: [
+        {
+          price: priceId,
+          quantity: 1,
+        },
+      ],
+      success_url: `${origin}/dashboard/settings?session_id={CHECKOUT_SESSION_ID}&success=true`,
+      cancel_url: `${origin}/pricing?canceled=true`,
+      metadata: {
+        userId: userData.id,
+      },
+      customer_update: {
+        address: "auto",
+      },
+      allow_promotion_codes: true,
+      billing_address_collection: "auto",
+      subscription_data: {
+        metadata: {
+          userId: userData.id,
+        },
+      },
+    })
+
+    console.log("[Checkout] Checkout session created successfully:", {
+      sessionId: session.id,
+      url: session.url,
+    })
+
+    // 8. Return session ID and checkout URL
+    const response: CheckoutSessionResponse = {
+      sessionId: session.id,
+      url: session.url || "",
+    }
+
+    return NextResponse.json(response)
+  } catch (error) {
+    console.error("[Checkout] Error creating checkout session:", error)
+
+    const errorMessage = formatStripeError(error)
+
+    return NextResponse.json(
+      {
+        error: errorMessage,
+        message: "Failed to create checkout session. Please try again.",
+      },
+      { status: 500 },
+    )
+  }
+}

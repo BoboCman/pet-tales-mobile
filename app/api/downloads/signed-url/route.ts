@@ -1,0 +1,86 @@
+import { type NextRequest, NextResponse } from "next/server"
+import { getSignedDownloadUrl } from "@/lib/storage/getSignedDownloadUrl"
+
+export async function GET() {
+  return NextResponse.json({ error: "Method not allowed" }, { status: 405 })
+}
+
+export async function PUT() {
+  return NextResponse.json({ error: "Method not allowed" }, { status: 405 })
+}
+
+export async function DELETE() {
+  return NextResponse.json({ error: "Method not allowed" }, { status: 405 })
+}
+
+export async function PATCH() {
+  return NextResponse.json({ error: "Method not allowed" }, { status: 405 })
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { entryId, filename } = body
+
+    if (!entryId || typeof entryId !== "string") {
+      return NextResponse.json(
+        { error: "Missing or invalid entryId" },
+        {
+          status: 400,
+          headers: { "Cache-Control": "no-store" },
+        },
+      )
+    }
+
+    const result = await getSignedDownloadUrl(entryId, filename)
+
+    console.log("📥 Download requested:", {
+      entryId,
+      filename: result.filename,
+      expiresAt: result.expiresAt.toISOString(),
+      timestamp: new Date().toISOString(),
+    })
+
+    return NextResponse.json(
+      {
+        url: result.url,
+        expiresAt: result.expiresAt.toISOString(),
+        filename: result.filename,
+      },
+      {
+        headers: { "Cache-Control": "no-store" },
+      },
+    )
+  } catch (error: any) {
+    console.error("❌ Error in signed-url route:", error)
+
+    if (error.message === "Entry not found") {
+      return NextResponse.json(
+        { error: "Tale not found" },
+        {
+          status: 404,
+          headers: { "Cache-Control": "no-store" },
+        },
+      )
+    }
+
+    if (error.message === "No downloadable video available") {
+      return NextResponse.json(
+        { error: "No downloadable video available" },
+        {
+          status: 404,
+          headers: { "Cache-Control": "no-store" },
+        },
+      )
+    }
+
+    // Generic server error
+    return NextResponse.json(
+      { error: "Failed to generate download URL" },
+      {
+        status: 500,
+        headers: { "Cache-Control": "no-store" },
+      },
+    )
+  }
+}

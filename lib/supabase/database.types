@@ -1,0 +1,19 @@
+// Define the diary_entries table interface with caption-related fields
+interface DiaryEntriesTable {
+  id: number;
+  user_id: string;
+  entry_date: string;
+  content: string;
+  // Caption-related fields
+  caption_status?: 'pending' | 'processing' | 'completed' | 'failed' | null;
+  caption_processing_started_at?: string | null;
+  caption_processing_completed_at?: string | null;
+  caption_error?: string | null;
+  caption_srt_url?: string | null;
+  caption_vtt_url?: string | null;
+  caption_transcript?: string | null;
+  cloudinary_audio_public_id?: string | null;
+  // Other fields can be added here
+}
+
+// Define other table interfaces here
