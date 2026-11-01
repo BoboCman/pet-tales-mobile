@@ -1232,7 +1232,9 @@ export async function POST(request: NextRequest) {
     console.log("📊 Fetching entry data from database...")
     const { data: entry, error: fetchError } = await supabaseAdmin
       .from("diary_entries")
-      .select("id, optimized_video_url, voiceover_url, cloudinary_public_id, pet_name, title, tts_status")
+      .select(
+        "id, optimized_video_url, voiceover_url, cloudinary_public_id, pet_name, title, tts_status, merged_video_status, merged_processing_started_at",
+      )
       .eq("id", entryId)
       .single()
 
@@ -1258,12 +1260,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Missing required data: ${missing.join(", ")}` }, { status: 400 })
     }
 
-    // Claim the job atomically. Several routes (TTS, compression webhook, Cloudinary webhook,
-    // caption retry, admin recovery) can trigger a merge for the same entry at nearly the same
-    // time. Without this, two runs overwrite the same Cloudinary assets, and the first run's
-    // cleanup deletes the audio and compressed video the second run is still using.
-    const staleBefore = new Date(Date.now() - STALE_PROCESSING_MS).toISOString()
-    const { data: claimed, error: claimError } = await supabaseAdmin
+    // Claim the job. Several routes (TTS, compression webhook, Cloudinary webhook, caption retry,
+    // admin recovery) can trigger a merge for the same entry at nearly the same time. Without this,
+    // two runs overwrite the same Cloudinary assets, and the first run's cleanup deletes the audio
+    // and compressed video the second run is still using.
+    const previousStatus: string | null = entry.merged_video_status ?? null
+    const previousStartedAt: string | null = entry.merged_processing_started_at ?? null
+    const startedMs = previousStartedAt ? new Date(previousStartedAt).getTime() : NaN
+    const isLiveRun =
+      previousStatus === "processing" && Number.isFinite(startedMs) && Date.now() - startedMs < STALE_PROCESSING_MS
+
+    if (isLiveRun) {
+      console.log("⏭️ Merge already in progress for this entry, skipping duplicate trigger")
+      return NextResponse.json(
+        { skipped: true, entryId, reason: "Merge already in progress for this entry" },
+        { status: 409 },
+      )
+    }
+
+    // Compare-and-swap: only update if status and start time are still what we just read,
+    // so if two triggers race past the check above, only one of them wins.
+    let claimQuery = supabaseAdmin
       .from("diary_entries")
       .update({
         merged_video_status: "processing",
@@ -1271,18 +1288,30 @@ export async function POST(request: NextRequest) {
         merged_video_error: null,
       })
       .eq("id", entryId)
-      .or(
-        `merged_video_status.is.null,merged_video_status.neq.processing,merged_processing_started_at.is.null,merged_processing_started_at.lt."${staleBefore}"`,
-      )
-      .select("id")
+    claimQuery =
+      previousStatus === null
+        ? claimQuery.is("merged_video_status", null)
+        : claimQuery.eq("merged_video_status", previousStatus)
+    claimQuery =
+      previousStartedAt === null
+        ? claimQuery.is("merged_processing_started_at", null)
+        : claimQuery.eq("merged_processing_started_at", previousStartedAt)
+
+    const { data: claimed, error: claimError } = await claimQuery.select("id")
 
     if (claimError) {
-      console.error("❌ Failed to claim merge job:", claimError)
-      return NextResponse.json({ error: `Failed to claim merge job: ${claimError.message}` }, { status: 500 })
-    }
-
-    if (!claimed || claimed.length === 0) {
-      console.log("⏭️ Merge already in progress for this entry, skipping duplicate trigger")
+      // Never block a merge because the claim itself failed; fall back to the old behavior.
+      console.error("⚠️ Could not claim merge job, continuing without the duplicate guard:", claimError)
+      await supabaseAdmin
+        .from("diary_entries")
+        .update({
+          merged_video_status: "processing",
+          merged_processing_started_at: new Date().toISOString(),
+          merged_video_error: null,
+        })
+        .eq("id", entryId)
+    } else if (!claimed || claimed.length === 0) {
+      console.log("⏭️ Another trigger claimed this merge first, skipping duplicate")
       return NextResponse.json(
         { skipped: true, entryId, reason: "Merge already in progress for this entry" },
         { status: 409 },
