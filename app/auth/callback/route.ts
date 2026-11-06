@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (!redirectTo || !redirectTo.startsWith("/")) {
-    redirectTo = "/dashboard/pets"
+    redirectTo = "/dashboard/reels/new"
   }
 
   if (code) {

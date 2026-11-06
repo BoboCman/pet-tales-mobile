@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { getUserDetails, getPets } from "@/lib/supabase/server"
-import { PlusCircle, ArrowRight } from "lucide-react"
+import { PlusCircle, ArrowRight, Video } from "lucide-react"
 import { PetCardNew } from "@/components/pets/pet-card-new"
 import { EmptyState } from "@/components/ui/empty-state"
 
@@ -59,15 +59,29 @@ export default async function PetsPage({ searchParams }: PetsPageProps) {
           </div>
           <p className="text-teal-50 text-sm md:text-base mb-4">
             {isNewUser
-              ? "Welcome to Pet Tales AI! Add your first pet to start creating amazing stories."
+              ? "Welcome! Upload any pet video to make your first tale. We'll set up your pet as you go."
               : "Manage your pet profiles and create personalized stories"}
           </p>
-          <Button asChild className="bg-white text-teal-600 hover:bg-teal-50 w-full md:w-auto h-12 md:h-10 text-base">
-            <Link href="/dashboard/pets/new">
-              <PlusCircle className="mr-2 h-4 w-4" />
-              {pets.length === 0 ? "Add Your First Pet" : "Add New Pet"}
-            </Link>
-          </Button>
+          <div className="flex flex-col md:flex-row gap-2">
+            <Button asChild className="bg-white text-teal-600 hover:bg-teal-50 w-full md:w-auto h-12 md:h-10 text-base">
+              <Link href="/dashboard/reels/new">
+                <Video className="mr-2 h-4 w-4" />
+                {pets.length === 0 ? "Make Your First Tale" : "Make a Tale"}
+              </Link>
+            </Button>
+            {pets.length > 0 && (
+              <Button
+                asChild
+                variant="ghost"
+                className="text-white hover:bg-teal-700 hover:text-white w-full md:w-auto h-12 md:h-10 text-base"
+              >
+                <Link href="/dashboard/pets/new">
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Add Pet
+                </Link>
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -92,11 +106,11 @@ export default async function PetsPage({ searchParams }: PetsPageProps) {
         {pets.length === 0 ? (
           <div className="col-span-full text-center py-6">
             <EmptyState
-              title={isNewUser ? "Let's add your first pet!" : "No pets added yet"}
+              title="No pets yet"
               description={
                 isNewUser
-                  ? "Create a profile for your furry friend to start generating their personalized AI stories."
-                  : "Add your first pet to start creating personalized stories."
+                  ? "Skip the forms. Upload a video and we'll ask for your pet's name right there."
+                  : "Upload a video and we'll ask for your pet's name right there."
               }
               icon={<PlusCircle className="h-10 w-10" />}
               action={
@@ -104,9 +118,9 @@ export default async function PetsPage({ searchParams }: PetsPageProps) {
                   className="bg-teal-600 hover:bg-teal-700 text-white w-full h-12 text-base hover:scale-105 transition-transform"
                   asChild
                 >
-                  <Link href="/dashboard/pets/new">
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Add Your First Pet
+                  <Link href="/dashboard/reels/new">
+                    <Video className="mr-2 h-4 w-4" />
+                    Make Your First Tale
                   </Link>
                 </Button>
               }

@@ -8,7 +8,7 @@ import { useDirectUpload } from "@/lib/supabase/client-storage"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Camera, Upload, Loader2, RotateCcw, Check, ArrowLeft, Sparkles } from "lucide-react"
+import { Camera, Upload, Loader2, RotateCcw, Check, Sparkles, Plus } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
 import { clientLogger } from "@/lib/client-logger"
@@ -20,6 +20,7 @@ import { getVoicesByPetType } from "@/lib/voice-personalities"
 import { NARRATION_GENRES } from "@/lib/narration-genres"
 import { useToast } from "@/components/ui/use-toast" // Import useToast
 import { VoiceSelector } from "./voice-selector" // Import VoiceSelector
+import { QuickPetFields, quickPetDefaults, type QuickPetValues } from "./quick-pet-fields"
 
 interface Pet {
   id: string
@@ -98,8 +99,14 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [petId, setPetId] = useState(selectedPetId)
-  const [narrationStyle, setNarrationStyle] = useState("")
-  const [narrationGenre, setNarrationGenre] = useState("heartfelt")
+  // Defaults match the backend defaults in /api/video/upload, so a user can
+  // create a first tale without making any choices.
+  const [narrationStyle, setNarrationStyle] = useState("british_narrator")
+  const [narrationGenre, setNarrationGenre] = useState("comedy")
+  const [isAddingPet, setIsAddingPet] = useState(pets.length === 0)
+  const [quickPet, setQuickPet] = useState<QuickPetValues>({ name: "", type: "dog", gender: "male" })
+  const [createdPet, setCreatedPet] = useState<Pet | null>(null)
+  const [showVoicePicker, setShowVoicePicker] = useState(false)
   const [mode, setMode] = useState<"select" | "upload" | "camera" | "preview">("select")
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null)
@@ -110,9 +117,9 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
   const [showOutOfCreditsModal, setShowOutOfCreditsModal] = useState(false)
   const [showSuccessScreen, setShowSuccessScreen] = useState(false)
 
-  const selectedPet = pets.find((pet) => pet.id === petId)
+  const selectedPet = isAddingPet ? createdPet : pets.find((pet) => pet.id === petId) || createdPet
 
-  const availableVoices = selectedPet ? getVoicesByPetType(selectedPet.type) : []
+  const availableVoices = getVoicesByPetType(selectedPet?.type || quickPet.type)
 
   // All voices now work for all pets, so no validation required
 
@@ -224,8 +231,26 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
     })
   }
 
+  // Creates the pet from the quick form (name, dog/cat, boy/girl) the first
+  // time it's needed. Reuses it on retry so we never create duplicates.
+  const ensurePet = async (userId: string): Promise<Pet> => {
+    if (!isAddingPet && selectedPet) return selectedPet
+    if (createdPet) return createdPet
+    const { data, error } = await supabase
+      .from("pets")
+      .insert({ ...quickPetDefaults(quickPet), user_id: userId })
+      .select()
+      .single()
+    if (error || !data) {
+      clientLogger.error("DataUpload", "Quick pet creation failed", error)
+      throw new Error("Couldn't save your pet. Please try again.")
+    }
+    setCreatedPet(data as Pet)
+    return data as Pet
+  }
+
   const handleVideoUpload = async () => {
-    if (!selectedFile || !selectedPet) {
+    if (!selectedFile || (!selectedPet && !(isAddingPet && quickPet.name.trim()))) {
       toast({
         title: "Error",
         description: "Please select a pet and video file",
@@ -243,7 +268,6 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
       clientLogger.dev("DataUpload", "Upload details", {
         fileName: selectedFile.name,
         fileSize: selectedFile.size,
-        petName: selectedPet.name,
         narrationStyle,
         narrationGenre,
       })
@@ -310,6 +334,8 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
         throw new Error("User not authenticated")
       }
 
+      const pet = await ensurePet(user.id)
+
       // Upload video to Supabase storage
       setCurrentStep("uploading_video")
       setUploadProgress(10)
@@ -333,25 +359,25 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
       clientLogger.dev("DataUpload", "Preparing webhook payload", {
         narrationStyle,
         narrationGenre,
-        petType: selectedPet.type,
+        petType: pet.type,
       })
 
       const webhookPayload = {
         video_url: videoUrl,
-        pet_id: petId,
+        pet_id: pet.id,
         user_id: user.id,
-        pet_name: selectedPet.name,
-        pet_type: selectedPet.type,
-        pet_breed: selectedPet.breed,
-        pet_gender: selectedPet.gender,
-        pet_age: selectedPet.pet_age,
-        personality_energy: selectedPet.personality_energy,
-        personality_sociability: selectedPet.personality_sociability,
-        personality_confidence: selectedPet.personality_confidence,
-        personality_obedience: selectedPet.personality_obedience,
-        personality_play_style: selectedPet.personality_play_style,
-        personality_curiosity: selectedPet.personality_curiosity,
-        personality_territorial: selectedPet.personality_territorial,
+        pet_name: pet.name,
+        pet_type: pet.type,
+        pet_breed: pet.breed,
+        pet_gender: pet.gender,
+        pet_age: pet.pet_age,
+        personality_energy: pet.personality_energy,
+        personality_sociability: pet.personality_sociability,
+        personality_confidence: pet.personality_confidence,
+        personality_obedience: pet.personality_obedience,
+        personality_play_style: pet.personality_play_style,
+        personality_curiosity: pet.personality_curiosity,
+        personality_territorial: pet.personality_territorial,
         video_metadata: {
           filename: selectedFile.name,
           filesize: selectedFile.size,
@@ -591,162 +617,184 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
     )
   }
 
-  // Video preview mode
+  const hiddenInputs = (
+    <>
+      <input
+        ref={recordInputRef}
+        type="file"
+        accept="video/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) handleFileSelection(file)
+          e.target.value = ""
+        }}
+      />
+      <input
+        ref={uploadInputRef}
+        type="file"
+        accept="video/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) handleFileSelection(file)
+          e.target.value = ""
+        }}
+      />
+    </>
+  )
+
+  const selectedGenre = NARRATION_GENRES.find((g) => g.value === narrationGenre)
+
+  // Step 2: video picked. Everything else has a default, so one tap on
+  // "Create Tale" works. Pet, voice and vibe can each be changed inline.
   if (mode === "preview" && selectedFile && videoPreviewUrl) {
     return (
-      <div className="space-y-6">
-        <div className="lg:hidden">
-          <Button variant="outline" onClick={handleRetake} className="mb-4 bg-transparent">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
-          </Button>
-          <h2 className="text-2xl font-bold mb-2">Review & Create</h2>
-          <p className="text-muted-foreground">Preview your video and create your tale</p>
-        </div>
+      <div className="space-y-5">
+        {hiddenInputs}
+        <OutOfCreditsModal
+          isOpen={showOutOfCreditsModal}
+          onClose={() => setShowOutOfCreditsModal(false)}
+          currentTier="free"
+          resetDate={null}
+          balance={creditBalance || 0}
+        />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
-          {/* LEFT COLUMN: Settings (Sticky on desktop) */}
-          <div className="space-y-6 lg:sticky lg:top-20 lg:self-start">
-            <div className="hidden lg:block">
-              <Button variant="outline" onClick={handleRetake} className="mb-4 bg-transparent">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Upload
-              </Button>
-              <h2 className="text-2xl font-bold mb-2">Review & Create</h2>
-              <p className="text-muted-foreground">Preview your video and create your tale</p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-8">
+          {/* Video preview */}
+          <div className="space-y-3">
+            <div className="relative aspect-[9/16] max-h-[55vh] lg:max-h-[75vh] mx-auto rounded-xl overflow-hidden bg-black">
+              <video
+                ref={videoPreviewRef}
+                src={videoPreviewUrl || ""}
+                controls
+                className="w-full h-full object-contain"
+                playsInline
+              />
             </div>
-
-            {/* Pet Information Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Pet Information</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-16 w-16">
-                    <AvatarImage src={selectedPet?.image_url || ""} alt={selectedPet?.name} />
-                    <AvatarFallback className="bg-teal-100 text-teal-700 text-xl">
-                      {getPetEmoji(selectedPet?.type || "")}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <h3 className="font-semibold text-lg">{selectedPet?.name}</h3>
-                    <p className="text-sm text-muted-foreground capitalize">
-                      {selectedPet?.breed || selectedPet?.type}
-                    </p>
-                    <p className="text-sm text-teal-600 font-medium">
-                      {selectedPet ? getTopPersonalityTraits(selectedPet) : ""}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Voice Personality Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Pet's Voice</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {availableVoices
-                  .filter((v) => v.value === narrationStyle)
-                  .map((voice) => (
-                    <div key={voice.value} className="flex items-center gap-4">
-                      <div className="flex items-center justify-center w-12 h-12 rounded-full bg-teal-50 dark:bg-teal-900/30 text-2xl">
-                        {voice.emoji}
-                      </div>
-                      <div>
-                        <h3 className="font-semibold">{voice.label}</h3>
-                        <p className="text-sm text-muted-foreground">{voice.description}</p>
-                      </div>
-                    </div>
-                  ))}
-                <Button variant="outline" onClick={() => setMode("select")} className="w-full mt-4 bg-transparent">
-                  Change Voice
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Narration Genre Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Narration Vibe</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {NARRATION_GENRES.filter((g) => g.value === narrationGenre).map((genre) => (
-                  <div key={genre.value} className="flex items-center gap-4">
-                    <div className="flex items-center justify-center w-12 h-12 rounded-full bg-teal-50 dark:bg-teal-900/30 text-2xl">
-                      {genre.emoji}
-                    </div>
-                    <div>
-                      <h3 className="font-semibold">{genre.label}</h3>
-                      <p className="text-sm text-muted-foreground">{genre.description}</p>
-                    </div>
-                  </div>
-                ))}
-                <Button variant="outline" onClick={() => setMode("select")} className="w-full mt-4 bg-transparent">
-                  Update the Vibe
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* File Information */}
-            <Card className="hidden lg:block">
-              <CardHeader>
-                <CardTitle className="text-lg">Video Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">File name:</span>
-                  <span className="font-medium truncate ml-2">{selectedFile?.name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Size:</span>
-                  <span className="font-medium">
-                    {selectedFile ? (selectedFile.size / (1024 * 1024)).toFixed(2) : 0} MB
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Type:</span>
-                  <span className="font-medium">{selectedFile?.type || "video/*"}</span>
-                </div>
-              </CardContent>
-            </Card>
+            <Button variant="ghost" onClick={handleRetake} className="w-full text-gray-600">
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Pick a different video
+            </Button>
           </div>
 
-          {/* RIGHT COLUMN: Video Preview */}
-          <div className="space-y-6">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="relative aspect-[9/16] max-w-md mx-auto lg:max-w-full rounded-lg overflow-hidden bg-black">
-                  <video
-                    ref={videoPreviewRef}
-                    src={videoPreviewUrl || ""}
-                    controls
-                    className="w-full h-full object-contain"
-                    playsInline
-                  />
+          {/* Settings */}
+          <div className="space-y-5 lg:sticky lg:top-20 lg:self-start">
+            {/* Who's the star? */}
+            <section className="space-y-3">
+              <Label className="text-base font-semibold">Who's the star?</Label>
+              {isAddingPet ? (
+                <div className="rounded-xl border-2 border-teal-200 dark:border-teal-800 p-4">
+                  <QuickPetFields values={quickPet} onChange={setQuickPet} />
+                  {pets.length > 0 && (
+                    <Button
+                      variant="link"
+                      className="px-0 mt-1 text-teal-700"
+                      onClick={() => {
+                        setIsAddingPet(false)
+                        setPetId(pets[0].id)
+                      }}
+                    >
+                      Choose an existing pet instead
+                    </Button>
+                  )}
                 </div>
-
-                {/* Action Buttons */}
-                <div className="grid grid-cols-2 gap-4 mt-6">
-                  <Button variant="outline" onClick={handleRetake} className="h-12 bg-transparent">
-                    <RotateCcw className="mr-2 h-4 w-4" />
-                    Retake
-                  </Button>
-                  <Button
-                    onClick={handleVideoUpload}
-                    className="h-12 bg-teal-600 hover:bg-teal-700"
-                    disabled={isOutOfCredits || isCheckingCredits}
+              ) : (
+                <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                  {pets.map((pet) => (
+                    <button
+                      key={pet.id}
+                      type="button"
+                      onClick={() => setPetId(pet.id)}
+                      className={`flex items-center gap-2 shrink-0 rounded-full border-2 py-1.5 pl-1.5 pr-4 transition-colors ${
+                        petId === pet.id
+                          ? "border-teal-500 bg-teal-50 dark:bg-teal-900/30"
+                          : "border-gray-200 dark:border-gray-700"
+                      }`}
+                    >
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={pet.image_url || ""} alt={pet.name} />
+                        <AvatarFallback className="bg-teal-100 text-teal-700 text-sm">
+                          {getPetEmoji(pet.type)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="font-medium">{pet.name}</span>
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingPet(true)}
+                    className="flex items-center gap-1 shrink-0 rounded-full border-2 border-dashed border-gray-300 dark:border-gray-600 px-4 text-sm text-gray-600 dark:text-gray-300"
                   >
-                    <Check className="mr-2 h-4 w-4" />
-                    Create Tale
-                  </Button>
+                    <Plus className="h-4 w-4" /> New pet
+                  </button>
                 </div>
-              </CardContent>
-            </Card>
+              )}
+            </section>
 
-            {/* Out of Credits Banner (if applicable) */}
+            {/* Vibe */}
+            <section className="space-y-3">
+              <Label className="text-base font-semibold">Pick a vibe</Label>
+              <div className="flex flex-wrap gap-2">
+                {NARRATION_GENRES.map((genre) => (
+                  <button
+                    key={genre.value}
+                    type="button"
+                    onClick={() => setNarrationGenre(genre.value)}
+                    className={`rounded-full border-2 px-3 py-1.5 text-sm font-medium transition-colors ${
+                      narrationGenre === genre.value
+                        ? "border-teal-500 bg-teal-50 text-teal-800 dark:bg-teal-900/30 dark:text-teal-200"
+                        : "border-gray-200 text-gray-700 dark:border-gray-700 dark:text-gray-300"
+                    }`}
+                  >
+                    {genre.emoji} {genre.label}
+                  </button>
+                ))}
+              </div>
+              {selectedGenre && <p className="text-sm text-muted-foreground">{selectedGenre.description}</p>}
+            </section>
+
+            {/* Voice: show the current pick, expand to change */}
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-semibold">Voice</Label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-teal-700"
+                  onClick={() => setShowVoicePicker((v) => !v)}
+                >
+                  {showVoicePicker ? "Done" : "Change"}
+                </Button>
+              </div>
+              {showVoicePicker ? (
+                <VoiceSelector
+                  voices={availableVoices}
+                  selectedVoice={narrationStyle}
+                  onSelectVoice={(voiceValue) => setNarrationStyle(voiceValue)}
+                />
+              ) : (
+                selectedVoicePersonality && (
+                  <button
+                    type="button"
+                    onClick={() => setShowVoicePicker(true)}
+                    className="w-full flex items-center gap-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 p-3 text-left"
+                  >
+                    <span className="flex items-center justify-center w-10 h-10 rounded-full bg-teal-50 dark:bg-teal-900/30 text-xl">
+                      {selectedVoicePersonality.emoji}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block font-medium">{selectedVoicePersonality.label}</span>
+                      <span className="block text-sm text-muted-foreground truncate">
+                        {selectedVoicePersonality.description}
+                      </span>
+                    </span>
+                  </button>
+                )
+              )}
+            </section>
+
             {isOutOfCredits && (
               <OutOfCreditsBanner
                 balance={creditBalance || 0}
@@ -755,15 +803,32 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
                 onRefreshCredits={handleRefreshCredits}
               />
             )}
+
+            <div className="sticky bottom-[100px] md:bottom-4 lg:static z-10 pt-1 bg-gray-50/90 backdrop-blur rounded-xl">
+              <Button
+                onClick={handleVideoUpload}
+                className="w-full h-14 text-lg font-semibold bg-teal-600 hover:bg-teal-700 shadow-lg"
+                disabled={isOutOfCredits || isCheckingCredits || (isAddingPet && !quickPet.name.trim())}
+              >
+                <Sparkles className="mr-2 h-5 w-5" />
+                {isAddingPet && !quickPet.name.trim() ? "Add your pet's name" : "Create Tale"}
+              </Button>
+              {creditBalance !== null && (
+                <p className="text-xs text-center text-gray-500 mt-2">
+                  Uses 1 credit · You have {creditBalance}
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </div>
     )
   }
 
-  // Main selection interface
+  // Step 1: just get a video. No forms in the way.
   return (
     <div className="space-y-6">
+      {hiddenInputs}
       <OutOfCreditsModal
         isOpen={showOutOfCreditsModal}
         onClose={() => setShowOutOfCreditsModal(false)}
@@ -781,170 +846,34 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
         />
       )}
 
-      {/* Hidden file inputs */}
-      <input
-        ref={recordInputRef}
-        type="file"
-        accept="video/*"
-        capture="environment"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          if (file) handleFileSelection(file)
-        }}
-      />
+      <button
+        type="button"
+        onClick={handleUploadClick}
+        disabled={isOutOfCredits || isCheckingCredits}
+        className="w-full flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-teal-300 dark:border-teal-700 bg-teal-50/60 dark:bg-teal-900/20 py-12 px-6 text-center transition-colors hover:bg-teal-50 disabled:opacity-50"
+      >
+        <span className="flex items-center justify-center w-16 h-16 rounded-full bg-teal-600 text-white shadow-lg">
+          <Upload className="h-7 w-7" />
+        </span>
+        <span className="text-xl font-semibold text-gray-900 dark:text-white">Choose a pet video</span>
+        <span className="text-sm text-gray-600 dark:text-gray-400">From your camera roll · under 75MB</span>
+      </button>
 
-      <input
-        ref={uploadInputRef}
-        type="file"
-        accept="video/*"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          if (file) handleFileSelection(file)
-        }}
-      />
+      <Button
+        onClick={handleRecordClick}
+        variant="outline"
+        className="w-full h-14 text-base border-2 border-teal-200 text-teal-700 bg-transparent dark:border-teal-800 dark:text-teal-400"
+        disabled={isOutOfCredits || isCheckingCredits}
+      >
+        <Camera className="mr-2 h-5 w-5" />
+        Record one now
+      </Button>
 
-      {/* Pet Selection */}
-      <div className="space-y-4">
-        <Label className="text-base font-medium">Choose your pet</Label>
-        <div className="grid grid-cols-2 gap-3">
-          {pets.map((pet) => (
-            <div
-              key={pet.id}
-              className={`relative flex items-center p-3 rounded-lg cursor-pointer border-2 transition-colors ${
-                petId === pet.id
-                  ? "border-teal-500 bg-teal-50 dark:bg-teal-900/30 dark:border-teal-400"
-                  : "border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600"
-              }`}
-              onClick={() => {
-                setPetId(pet.id)
-                clientLogger.dev("DataUpload", "Pet selected", { petId: pet.id, petName: pet.name })
-              }}
-            >
-              <Avatar className="h-10 w-10 mr-3">
-                <AvatarImage src={pet.image_url || ""} alt={pet.name} />
-                <AvatarFallback className="bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200">
-                  {getPetEmoji(pet.type) || pet.name.charAt(0)}
-                </AvatarFallback>
-              </Avatar>
-              <span className="font-medium text-foreground">{pet.name}</span>
-
-              {petId === pet.id && (
-                <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-teal-500 flex items-center justify-center shadow-md">
-                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path
-                      fillRule="evenodd"
-                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Voice Personality Selection */}
-      <div className="space-y-4">
-        {availableVoices.length === 0 ? (
-          <>
-            <Label className="text-base font-medium">Pet's Voice</Label>
-            <p className="text-sm text-muted-foreground">Please select a pet first</p>
-          </>
-        ) : (
-          <VoiceSelector
-            voices={availableVoices}
-            selectedVoice={narrationStyle}
-            onSelectVoice={(voiceValue) => {
-              setNarrationStyle(voiceValue)
-              clientLogger.dev("DataUpload", "Voice personality selected", { voice: voiceValue })
-            }}
-          />
-        )}
-      </div>
-
-      {/* Narration Genre Selection */}
-      <div className="space-y-4">
-        <Label className="text-base font-medium">Narration Vibe</Label>
-        <div className="grid grid-cols-1 gap-3">
-          {NARRATION_GENRES.map((genre) => (
-            <div
-              key={genre.value}
-              className={`flex items-center p-4 rounded-lg cursor-pointer border-2 transition-all duration-200 ${
-                narrationGenre === genre.value
-                  ? "border-teal-500 bg-teal-50 dark:bg-teal-900/30 dark:border-teal-400"
-                  : "border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600"
-              }`}
-              onClick={() => {
-                setNarrationGenre(genre.value)
-                clientLogger.dev("DataUpload", "Narration genre selected", { genre: genre.value })
-              }}
-            >
-              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 mr-4 text-xl">
-                {genre.emoji}
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-medium text-base text-foreground mb-1">{genre.label}</h3>
-                <p className="text-sm text-muted-foreground line-clamp-2">{genre.description}</p>
-              </div>
-              {narrationGenre === genre.value && (
-                <div className="ml-3 flex-shrink-0">
-                  <div className="w-6 h-6 rounded-full bg-teal-500 flex items-center justify-center">
-                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path
-                        fillRule="evenodd"
-                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Upload Actions */}
-      <div className="grid grid-cols-2 gap-4 pt-4">
-        <Button
-          onClick={handleRecordClick}
-          className="h-16 text-lg bg-teal-600 hover:bg-teal-700 text-white"
-          disabled={!selectedPet || isOutOfCredits || isCheckingCredits || !narrationStyle || !narrationGenre}
-        >
-          <Camera className="mr-2 h-5 w-5" />
-          Record Video
-        </Button>
-        <Button
-          onClick={handleUploadClick}
-          variant="outline"
-          className="h-16 text-lg border-2 border-teal-200 text-teal-700 hover:bg-teal-50 bg-transparent dark:border-teal-800 dark:text-teal-400 dark:hover:bg-teal-900/30"
-          disabled={!selectedPet || isOutOfCredits || isCheckingCredits || !narrationStyle || !narrationGenre}
-        >
-          <Upload className="mr-2 h-5 w-5" />
-          Upload Video
-        </Button>
-      </div>
-
-      {/* Instructions */}
-      <div className="text-center text-sm text-gray-600 dark:text-gray-400 space-y-2">
-        <p>
-          📱 <strong>Record:</strong> Use your camera to capture a moment
-        </p>
-        <p>
-          📁 <strong>Upload:</strong> Choose an existing video from your device
-        </p>
-        <p className="text-xs text-gray-500 dark:text-gray-500">
-          Videos should be under 75MB and show your pet in action for best results
-        </p>
-        {creditBalance !== null && (
-          <p className="text-xs text-gray-500 dark:text-gray-500">
-            Current credits: {creditBalance} • Each tale costs at least 1 credit
-          </p>
-        )}
-      </div>
+      <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1.5">
+        <li>✨ Best results: 10 to 60 seconds with your pet doing something</li>
+        <li>🎙️ You'll pick a vibe and voice on the next screen (or keep our picks)</li>
+        {creditBalance !== null && <li>🎟️ You have {creditBalance} credit{creditBalance === 1 ? "" : "s"}</li>}
+      </ul>
     </div>
   )
 }

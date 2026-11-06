@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { Home, Video, Users, Settings, LogIn, PawPrint, Zap } from "lucide-react"
+import { Home, Video, Users, Settings, LogIn, PawPrint, Plus } from "lucide-react"
 import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useMobile } from "@/hooks/use-mobile"
@@ -80,7 +80,10 @@ export function BottomNav() {
       if (path === "/dashboard/pets" && (pathname === "/dashboard/pets" || pathname.startsWith("/dashboard/pets"))) {
         return true
       }
-      if (path === "/dashboard/reels" && pathname.startsWith("/dashboard/reels")) {
+      if (path === "/dashboard/reels/new") {
+        return pathname === "/dashboard/reels/new"
+      }
+      if (path === "/dashboard/reels" && pathname.startsWith("/dashboard/reels") && pathname !== "/dashboard/reels/new") {
         return true
       }
       if (path === "/community/public" && pathname.startsWith("/community")) {
@@ -226,10 +229,24 @@ export function BottomNav() {
       }}
     >
       <div className="grid h-[70px] grid-cols-5">
-        <NavItem path="/dashboard/pets" icon={<PawPrint className="w-5 h-5" />} label="Pets" />
         <NavItem path="/dashboard/reels" icon={<Video className="w-5 h-5" />} label="Tales" />
+        <NavItem path="/dashboard/pets" icon={<PawPrint className="w-5 h-5" />} label="Pets" />
+        <Link
+          href="/dashboard/reels/new"
+          aria-label="Create a new tale"
+          className="flex flex-col items-center justify-start pt-1.5"
+          style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
+        >
+          <span
+            className={`flex items-center justify-center w-12 h-12 rounded-full shadow-lg ${
+              isActive("/dashboard/reels/new") ? "bg-teal-100 text-teal-700" : "bg-white text-teal-600"
+            }`}
+          >
+            <Plus className="w-7 h-7" strokeWidth={2.5} />
+          </span>
+          <span className="text-xs font-medium leading-none text-white mt-1">Create</span>
+        </Link>
         <NavItem path="/community/public" icon={<Users className="w-5 h-5" />} label="Community" />
-        <NavItem path="/pricing" icon={<Zap className="w-5 h-5" />} label="Credits" />
         <NavItem path="/dashboard/settings" icon={<Settings className="w-5 h-5" />} label="Settings" />
       </div>
     </div>
