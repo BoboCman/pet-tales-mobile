@@ -23,7 +23,9 @@ export const metadata: Metadata = {
 }
 
 export default async function PricingPage() {
-  const packs = await getAllPacks()
+  // One-time packs are off for launch (plans only). Set SHOW_CREDIT_PACKS=true once the packs
+  // exist in the PetTaleAI Stripe account and credit_packs.stripe_price_id points at them.
+  const packs = process.env.SHOW_CREDIT_PACKS === "true" ? await getAllPacks() : []
   const availablePlanIds = getConfiguredPlanIds()
 
   return (
