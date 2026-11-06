@@ -997,6 +997,10 @@ async function createMergedVideoWithCloudinarySubtitles(
     console.log("🔹 STEP 2: Getting video duration and calculating loops...")
     const videoDuration = await getVideoDuration(videoPublicId)
     const loopCount = Math.max(1, Math.ceil(audioDuration / videoDuration))
+    // Cloudinary's e_loop:N means N EXTRA plays (max 5), so e_loop:1 doubles the clip.
+    // No loop component at all when one play already covers the narration.
+    const extraPlays = Math.min(5, loopCount - 1)
+    const loopComponents: any[] = extraPlays > 0 ? [{ effect: `loop:${extraPlays}` }] : []
     console.log("📏 Video duration:", videoDuration, "seconds")
     console.log("🔄 Loop count needed:", loopCount)
 
@@ -1111,14 +1115,20 @@ async function createMergedVideoWithCloudinarySubtitles(
     console.log("  - Caption quality: Natural sentences with intelligent phrase splitting")
     console.log("  - Font styling: Arial, 12px for mobile readability")
 
-    // Single pass: loop the 720p clip, mute its own sound, then add narration, subtitles and trim.
-    // Only the final output (narration length, 720x1280) is billed, instead of a full intermediate
-    // video plus a second encode.
+    // Single pass: loop the 720p clip, trim it to the narration length, mute its own sound, then
+    // add narration and subtitles. Only the final output (narration length, 720x1280) is billed.
+    // The trim sits right after the loop so the base video is already the right length before any
+    // overlay; a trim only at the end of the chain was not applied (tales kept playing the raw clip
+    // after the narration ended).
     const singlePassTransformations: any[] = [
-      { effect: `loop:${loopCount}` },
+      ...loopComponents,
+      { end_offset: audioDuration },
       { effect: "volume:mute" },
       ...transformations,
     ]
+
+    // A render counts as too long if it runs more than 1 second past the narration.
+    const isTooLong = (duration?: number) => typeof duration === "number" && duration > audioDuration + 1
 
     let finalResult: Awaited<ReturnType<typeof uploadWithEagerAsync>>
     try {
@@ -1134,40 +1144,47 @@ async function createMergedVideoWithCloudinarySubtitles(
       if (finalResult.hasAudio === false) {
         throw new Error("Single-pass render came back without an audio track")
       }
+      if (isTooLong(finalResult.duration)) {
+        throw new Error(
+          `Single-pass render is ${finalResult.duration}s but the narration is ${audioDuration}s (trim not applied)`,
+        )
+      }
     } catch (singlePassError) {
-      // Fall back to the previous two-step render (looped intermediate, then merge), still from
-      // the 720p source, so a tale never fails because of the single-pass change.
+      // Fallback: let Cloudinary's delivery URL do the loop, trim and mute (a plain derived video),
+      // then add narration and subtitles on upload. Still 720p, so still billed at the SD rate.
       console.warn(
-        "⚠️ Single-pass render failed, falling back to two-step render:",
+        "⚠️ Single-pass render failed, falling back to pre-trimmed source:",
         describeError(singlePassError, "single-pass render failed"),
       )
 
-      currentStep = "STEP 4 (looped intermediate video, fallback)"
-      const intermediatePublicId = `pawsense/intermediate/entry_${entryId}_looped`
-      const intermediateResult = await uploadWithEagerAsync(
-        sourceVideoUrl,
-        intermediatePublicId,
-        [
-          // Loop video to match audio duration
-          { effect: `loop:${loopCount}` },
+      currentStep = "STEP 6 (final merge from pre-trimmed source, fallback)"
+      const trimmedSourceUrl = cloudinary.url(videoPublicId, {
+        resource_type: "video",
+        format: "mp4",
+        transformation: [
+          // Same as the compress step's eager derivative, so that part is already cached
+          { width: 720, crop: "scale", video_codec: "h264", audio_codec: "aac" },
+          ...loopComponents,
+          { end_offset: audioDuration },
           // Remove original audio
           { audio_codec: "none" },
         ],
-        "Intermediate Video Creation (STEP 4, fallback)",
-      )
-      if (!intermediateResult.success) {
-        throw new Error(`STEP 4 failed: ${intermediateResult.error}`)
-      }
+      })
+      console.log("🔗 Pre-trimmed source URL:", trimmedSourceUrl.substring(0, 160) + "...")
 
-      currentStep = "STEP 6 (final merge with audio + subtitles, fallback)"
       finalResult = await uploadWithEagerAsync(
-        intermediateResult.secure_url!,
+        trimmedSourceUrl,
         finalPublicId,
         transformations,
         "Final Video Transformation (STEP 6, fallback)",
       )
       if (!finalResult.success) {
         throw new Error(`STEP 6 failed: ${finalResult.error}`)
+      }
+      if (isTooLong(finalResult.duration)) {
+        console.warn(
+          `⚠️ Fallback render is ${finalResult.duration}s but the narration is ${audioDuration}s; trim still not applied`,
+        )
       }
     }
 
