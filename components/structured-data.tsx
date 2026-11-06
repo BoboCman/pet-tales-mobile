@@ -36,7 +36,7 @@ export function StructuredData() {
       "@type": "Offer",
       price: "0",
       priceCurrency: "USD",
-      description: "Free to start with 3 tales, then 1 free tale per week. Credit packs available from $4.99.",
+      description: "First tale free, then 1 free tale per month. Plans from $4.99 a month.",
     },
     featureList: [
       "AI voice narration",
