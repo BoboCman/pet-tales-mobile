@@ -102,7 +102,8 @@ export async function syncSubscription(subscription: any): Promise<{ userId: str
 
 /**
  * Grant a plan's monthly tales for a paid subscription invoice (first payment and each renewal).
- * Idempotent per invoice: the invoice ID is stored in credit_transactions.stripe_payment_intent_id.
+ * Idempotent per invoice: "invoice:<id>" is stored in credit_transactions.stripe_payment_intent_id,
+ * which has a unique index.
  */
 export async function grantPlanTalesForInvoice(
   invoice: any,
@@ -162,7 +163,7 @@ export async function grantPlanTalesForInvoice(
     const { error: txError } = await supabase.from("credit_transactions").insert({
       user_id: userId,
       amount: plan.talesPerMonth,
-      transaction_type: "purchase",
+      transaction_type: "grant",
       pack_type: null,
       stripe_payment_intent_id: idempotencyKey,
       metadata: {
