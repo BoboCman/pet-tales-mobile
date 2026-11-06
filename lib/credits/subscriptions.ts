@@ -57,15 +57,22 @@ function periodEndIso(subscription: any): string | null {
  * Save a subscription's state (plan, status, period end) on the user.
  * Called for checkout completion, subscription updates/cancellations and paid invoices.
  */
-export async function syncSubscription(subscription: any): Promise<{ userId: string | null; error: Error | null }> {
+export async function syncSubscription(
+  subscription: any,
+): Promise<{ userId: string | null; ignored?: string; error: Error | null }> {
   try {
-    const userId = await findUserId(subscription)
-    if (!userId) {
-      return { userId: null, error: new Error(`No user found for subscription ${subscription?.id}`) }
-    }
-
+    // The Stripe account may be shared with other apps: only PetTaleAI plan prices are ours.
     const priceId = subscription?.items?.data?.[0]?.price?.id ?? null
     const plan = getPlanByPriceId(priceId)
+    if (!plan) {
+      return { userId: null, ignored: `price ${priceId} is not a PetTaleAI plan`, error: null }
+    }
+
+    const userId = await findUserId(subscription)
+    if (!userId) {
+      console.warn(`[subscriptions] No PetTaleAI user for subscription ${subscription?.id}`)
+      return { userId: null, ignored: "no matching user", error: null }
+    }
     const status: string = subscription?.status ?? "incomplete"
     const active = isActiveSubscriptionStatus(status)
 
@@ -121,15 +128,19 @@ export async function grantPlanTalesForInvoice(
     }
 
     const subscription = await stripe.subscriptions.retrieve(subscriptionId)
-    const { userId, error: syncError } = await syncSubscription(subscription)
-    if (!userId) {
-      return { granted: false, error: syncError ?? new Error("No user for subscription") }
-    }
-
     const priceId = (subscription as any)?.items?.data?.[0]?.price?.id ?? null
     const plan = getPlanByPriceId(priceId)
     if (!plan) {
-      return { granted: false, error: new Error(`Price ${priceId} is not a known plan`) }
+      // Another app's subscription on a shared Stripe account
+      return { granted: false, skipped: `price ${priceId} is not a PetTaleAI plan`, error: null }
+    }
+
+    const { userId, ignored, error: syncError } = await syncSubscription(subscription)
+    if (syncError) {
+      return { granted: false, error: syncError }
+    }
+    if (!userId) {
+      return { granted: false, skipped: ignored ?? "no matching user", error: null }
     }
 
     const supabase = getAdminClient()

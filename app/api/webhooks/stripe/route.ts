@@ -127,10 +127,9 @@ export async function POST(request: NextRequest) {
         pack_id: !!pack_id,
         pack_credits: !!pack_credits,
       })
-      return NextResponse.json(
-        { error: "Missing required metadata (userId, pack_id, or pack_credits)" },
-        { status: 400 },
-      )
+      // Not a PetTaleAI pack checkout (e.g. another app on a shared Stripe account).
+      // Acknowledge so Stripe doesn't retry or disable the endpoint.
+      return NextResponse.json({ received: true, ignored: "not a PetTaleAI pack checkout" })
     }
 
     const paymentIntentId =
