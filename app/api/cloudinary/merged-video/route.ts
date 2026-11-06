@@ -634,7 +634,9 @@ async function pollForEagerTransformation(
         console.log(`✅ Resource ready: ${publicId}`)
         return {
           success: true,
-          url: resource.secure_url,
+          // With eager_async the stored asset is the untransformed source; the rendered video is
+          // the eager derivative.
+          url: resource.eager?.[0]?.secure_url || resource.secure_url,
           duration: resource.duration,
           bytes: resource.bytes,
         }
@@ -673,6 +675,7 @@ async function uploadWithEagerAsync(
   secure_url?: string
   duration?: number
   bytes?: number
+  hasAudio?: boolean
   error?: string
 }> {
   console.log(`🔄 ${operationName}: Starting upload with eager_async support...`)
@@ -700,6 +703,8 @@ async function uploadWithEagerAsync(
       secure_url: result.secure_url,
       duration: result.duration,
       bytes: result.bytes,
+      // Cloudinary returns `audio: {}` for a video with no audio track
+      hasAudio: result.audio ? Boolean(result.audio.codec) : undefined,
     }
   } catch (error: any) {
     // Check if this is the "too large for synchronous" error
@@ -942,6 +947,7 @@ async function uploadVideoToSupabaseStorage(
  */
 async function createMergedVideoWithCloudinarySubtitles(
   videoPublicId: string,
+  optimizedVideoUrl: string | null,
   audioUrl: string,
   entryId: string,
 ): Promise<MergedVideoResult> {
@@ -994,44 +1000,21 @@ async function createMergedVideoWithCloudinarySubtitles(
     console.log("📏 Video duration:", videoDuration, "seconds")
     console.log("🔄 Loop count needed:", loopCount)
 
-    // STEP 3: Get original video URL
-    console.log("🔹 STEP 3: Getting original video URL...")
+    // STEP 3: Pick the source video.
+    // Use the 720p copy made by /api/video/compress (optimized_video_url). Cloudinary bills video
+    // per second of output at a rate set by the source and output resolution, so working from the
+    // original 1080p/4K upload cost 2-4x more per second than the 720p copy.
+    console.log("🔹 STEP 3: Picking source video (720p copy preferred)...")
     const originalVideoUrl = cloudinary.url(videoPublicId, {
       resource_type: "video",
       format: "mp4",
     })
-    console.log("🔗 Original video URL:", originalVideoUrl.substring(0, 100) + "...")
+    const sourceVideoUrl = optimizedVideoUrl || originalVideoUrl
+    console.log("🔗 Source video URL:", sourceVideoUrl.substring(0, 100) + "...")
+    console.log("  - Using 720p copy:", Boolean(optimizedVideoUrl))
 
-    // STEP 4: Create intermediate looped video with retry logic and eager_async support
-    currentStep = "STEP 4 (looped intermediate video)"
-    console.log("🔹 STEP 4: Creating intermediate looped video...")
-    const intermediatePublicId = `pawsense/intermediate/entry_${entryId}_looped`
-
-    const intermediateTransformation = [
-      // Loop video to match audio duration
-      { effect: `loop:${loopCount}` },
-      // Remove original audio
-      { audio_codec: "none" },
-    ]
-
-    const intermediateResult = await uploadWithEagerAsync(
-      originalVideoUrl,
-      intermediatePublicId,
-      intermediateTransformation,
-      "Intermediate Video Creation (STEP 4)",
-    )
-
-    if (!intermediateResult.success) {
-      throw new Error(`STEP 4 failed: ${intermediateResult.error}`)
-    }
-
-    console.log("✅ STEP 4 COMPLETED - Intermediate video created:")
-    console.log("  - Intermediate Public ID:", intermediateResult.public_id)
-    console.log("  - Intermediate URL:", intermediateResult.secure_url?.substring(0, 100) + "...")
-    console.log("  - Duration:", intermediateResult.duration, "seconds")
-    console.log("  - Size:", intermediateResult.bytes, "bytes")
-
-    // STEP 5: Check for Whisper HYBRID captions
+    // STEP 4/5: Wait for Whisper captions. The loop no longer needs its own intermediate video,
+    // so captions are awaited first and everything is rendered in one Cloudinary pass below.
     currentStep = "STEP 5 (wait for captions)"
     console.log("🔹 STEP 5: Checking for Whisper HYBRID captions...")
 
@@ -1120,7 +1103,7 @@ async function createMergedVideoWithCloudinarySubtitles(
     currentStep = "STEP 6 (final merge with audio + subtitles)"
 
     console.log("🔹 STEP 6: Applying final transformation with WHISPER HYBRID SUBTITLES...")
-    console.log("  - Source URL:", intermediateResult.secure_url?.substring(0, 100) + "...")
+    console.log("  - Source URL:", sourceVideoUrl.substring(0, 100) + "...")
     console.log("  - Target Public ID:", finalPublicId)
     console.log("  - Transformations count:", transformations.length)
     console.log("  - Audio duration:", audioDuration, "seconds")
@@ -1128,15 +1111,64 @@ async function createMergedVideoWithCloudinarySubtitles(
     console.log("  - Caption quality: Natural sentences with intelligent phrase splitting")
     console.log("  - Font styling: Arial, 12px for mobile readability")
 
-    const finalResult = await uploadWithEagerAsync(
-      intermediateResult.secure_url!,
-      finalPublicId,
-      transformations,
-      "Final Video Transformation (STEP 6)",
-    )
+    // Single pass: loop the 720p clip, mute its own sound, then add narration, subtitles and trim.
+    // Only the final output (narration length, 720x1280) is billed, instead of a full intermediate
+    // video plus a second encode.
+    const singlePassTransformations: any[] = [
+      { effect: `loop:${loopCount}` },
+      { effect: "volume:mute" },
+      ...transformations,
+    ]
 
-    if (!finalResult.success) {
-      throw new Error(`STEP 6 failed: ${finalResult.error}`)
+    let finalResult: Awaited<ReturnType<typeof uploadWithEagerAsync>>
+    try {
+      finalResult = await uploadWithEagerAsync(
+        sourceVideoUrl,
+        finalPublicId,
+        singlePassTransformations,
+        "Single-pass Final Video (STEP 6)",
+      )
+      if (!finalResult.success) {
+        throw new Error(finalResult.error || "Single-pass render failed")
+      }
+      if (finalResult.hasAudio === false) {
+        throw new Error("Single-pass render came back without an audio track")
+      }
+    } catch (singlePassError) {
+      // Fall back to the previous two-step render (looped intermediate, then merge), still from
+      // the 720p source, so a tale never fails because of the single-pass change.
+      console.warn(
+        "⚠️ Single-pass render failed, falling back to two-step render:",
+        describeError(singlePassError, "single-pass render failed"),
+      )
+
+      currentStep = "STEP 4 (looped intermediate video, fallback)"
+      const intermediatePublicId = `pawsense/intermediate/entry_${entryId}_looped`
+      const intermediateResult = await uploadWithEagerAsync(
+        sourceVideoUrl,
+        intermediatePublicId,
+        [
+          // Loop video to match audio duration
+          { effect: `loop:${loopCount}` },
+          // Remove original audio
+          { audio_codec: "none" },
+        ],
+        "Intermediate Video Creation (STEP 4, fallback)",
+      )
+      if (!intermediateResult.success) {
+        throw new Error(`STEP 4 failed: ${intermediateResult.error}`)
+      }
+
+      currentStep = "STEP 6 (final merge with audio + subtitles, fallback)"
+      finalResult = await uploadWithEagerAsync(
+        intermediateResult.secure_url!,
+        finalPublicId,
+        transformations,
+        "Final Video Transformation (STEP 6, fallback)",
+      )
+      if (!finalResult.success) {
+        throw new Error(`STEP 6 failed: ${finalResult.error}`)
+      }
     }
 
     console.log("✅ STEP 6 COMPLETED - Final transformation with WHISPER HYBRID SUBTITLES:")
@@ -1167,7 +1199,7 @@ async function createMergedVideoWithCloudinarySubtitles(
 
       return {
         success: true,
-        url: verification.secure_url,
+        url: finalResult.secure_url || verification.secure_url,
         publicId: verification.public_id,
         duration: verification.duration,
         bytes: verification.bytes,
@@ -1324,6 +1356,7 @@ export async function POST(request: NextRequest) {
     console.log("🚀 Starting 8-step merged video creation with WHISPER HYBRID SUBTITLES...")
     const result = await createMergedVideoWithCloudinarySubtitles(
       entry.cloudinary_public_id,
+      entry.optimized_video_url,
       entry.voiceover_url,
       entryId,
     )
