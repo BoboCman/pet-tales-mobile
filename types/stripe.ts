@@ -1,5 +1,5 @@
 export interface CheckoutSessionRequest {
-  priceId: string
+  planId: string
 }
 
 export interface CheckoutSessionResponse {

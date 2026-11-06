@@ -56,7 +56,7 @@ export default async function Home() {
               <HeroActionButtons isLoggedIn={!!session} />
 
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                3 free tales to start · 1 more free every week · Nothing to download
+                First tale free · 1 more free every month · Nothing to download
               </p>
             </div>
 

@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
+import { FREE_TIER } from "@/lib/pricing-config"
 
 // Export all interfaces from operations-server for type consistency
 export type {
@@ -363,11 +364,11 @@ export async function grantWelcomeCredits(userId: string): Promise<GrantCreditRe
       return { data: currentBalance, error: null, already_granted: true }
     }
 
-    // Grant 3 welcome credits
+    // Grant welcome tales (FREE_TIER.welcomeTales)
     const { error: updateError } = await supabase
       .from("users")
       .update({
-        free_credits: 3,
+        free_credits: FREE_TIER.welcomeTales,
         welcome_credits_granted: true,
       })
       .eq("id", userId)
@@ -380,7 +381,7 @@ export async function grantWelcomeCredits(userId: string): Promise<GrantCreditRe
     // Log transaction
     const { error: transactionError } = await supabase.from("credit_transactions").insert({
       user_id: userId,
-      amount: 3,
+      amount: FREE_TIER.welcomeTales,
       transaction_type: "welcome",
       metadata: { welcome_bonus: true },
     })
@@ -403,7 +404,10 @@ export async function grantWelcomeCredits(userId: string): Promise<GrantCreditRe
 }
 
 /**
- * Grant weekly free credit to a user (recurring, once per 7 days)
+ * Grant the free monthly tale (once every FREE_TIER.monthlyIntervalDays days).
+ * Never stacks: tops free_credits up to FREE_TIER.monthlyTales. Skips active subscribers,
+ * whose plan tales are granted by Stripe invoices instead.
+ * (Name and the "weekly" transaction type are kept for the existing cron and DB constraint.)
  *
  * @param userId - The user's UUID
  * @returns Promise with credit balance and days until next credit
@@ -429,7 +433,15 @@ export async function grantWeeklyCredit(userId: string): Promise<GrantCreditResu
     // SAFEGUARD: Check transaction history directly
     // This prevents duplicate grants even if last_weekly_credit_date is null
     // ============================================================
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    const intervalDays = FREE_TIER.monthlyIntervalDays
+
+    // Subscribers get plan tales from Stripe, not the free monthly tale
+    const { data: subRow } = await supabase.from("users").select("subscription_status").eq("id", userId).maybeSingle()
+    if (subRow?.subscription_status === "active" || subRow?.subscription_status === "trialing") {
+      return { data: currentBalance, error: null, already_granted: true }
+    }
+
+    const sevenDaysAgo = new Date(Date.now() - intervalDays * 24 * 60 * 60 * 1000).toISOString()
 
     const { data: recentWeeklyTransaction, error: txCheckError } = await supabase
       .from("credit_transactions")
@@ -449,7 +461,7 @@ export async function grantWeeklyCredit(userId: string): Promise<GrantCreditResu
       // User already received a weekly credit within the last 7 days
       const lastTxDate = new Date(recentWeeklyTransaction[0].created_at)
       const daysSinceTx = (Date.now() - lastTxDate.getTime()) / (1000 * 60 * 60 * 24)
-      const daysUntilNext = Math.ceil(7 - daysSinceTx)
+      const daysUntilNext = Math.ceil(intervalDays - daysSinceTx)
 
       console.log(
         `[admin] User ${userId} already received weekly credit ${daysSinceTx.toFixed(1)} days ago (via transaction check)`,
@@ -474,9 +486,9 @@ export async function grantWeeklyCredit(userId: string): Promise<GrantCreditResu
     }
 
     // Check if 7 days have passed
-    if (lastWeeklyDate && daysSinceLastCredit < 7) {
+    if (lastWeeklyDate && daysSinceLastCredit < intervalDays) {
       // Not eligible yet
-      const daysUntilNext = Math.ceil(7 - daysSinceLastCredit)
+      const daysUntilNext = Math.ceil(intervalDays - daysSinceLastCredit)
       return {
         data: { ...currentBalance, days_until_next: daysUntilNext },
         error: null,
@@ -484,8 +496,16 @@ export async function grantWeeklyCredit(userId: string): Promise<GrantCreditResu
       }
     }
 
-    // Grant 1 weekly credit
-    const newFreeCredits = currentBalance.free_credits + 1
+    // Top up to the free monthly allowance; unused free tales don't stack
+    if (currentBalance.free_credits >= FREE_TIER.monthlyTales) {
+      return {
+        data: { ...currentBalance, days_until_next: 0 },
+        error: null,
+        already_granted: true,
+      }
+    }
+    const grantAmount = FREE_TIER.monthlyTales - currentBalance.free_credits
+    const newFreeCredits = FREE_TIER.monthlyTales
 
     const { error: updateError } = await supabase
       .from("users")
@@ -503,9 +523,9 @@ export async function grantWeeklyCredit(userId: string): Promise<GrantCreditResu
     // Log transaction
     const { error: transactionError } = await supabase.from("credit_transactions").insert({
       user_id: userId,
-      amount: 1,
+      amount: grantAmount,
       transaction_type: "weekly",
-      metadata: { weekly_bonus: true, previous_date: lastWeeklyDate?.toISOString() },
+      metadata: { monthly_free_tale: true, previous_date: lastWeeklyDate?.toISOString() },
     })
 
     if (transactionError) {
@@ -526,7 +546,7 @@ export async function grantWeeklyCredit(userId: string): Promise<GrantCreditResu
       return { data: null, error: newBalanceError }
     }
 
-    return { data: { ...newBalance, days_until_next: 7 }, error: null, already_granted: false }
+    return { data: { ...newBalance, days_until_next: intervalDays }, error: null, already_granted: false }
   } catch (error) {
     console.error("[admin] grantWeeklyCredit exception:", error)
     return { data: null, error: error instanceof Error ? error : new Error("Unknown error") }

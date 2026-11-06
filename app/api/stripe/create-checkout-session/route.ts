@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { stripe } from "@/lib/stripe"
 import { createClient } from "@/lib/supabase/server"
 import { formatStripeError } from "@/lib/stripe-errors"
-import { validatePriceIds } from "@/lib/pricing-config"
+import { getPlanById, getPlanPriceId } from "@/lib/pricing-config"
 import type { CheckoutSessionRequest, CheckoutSessionResponse } from "@/types/stripe"
 import { getAppBaseUrl } from "@/lib/utils/app-url"
 
@@ -28,28 +28,29 @@ export async function POST(request: Request) {
 
     // 2. Parse request body
     const body: CheckoutSessionRequest = await request.json()
-    const { priceId } = body
+    const plan = body.planId ? getPlanById(body.planId) : undefined
 
-    if (!priceId) {
+    if (!plan) {
       return NextResponse.json(
         {
-          error: "Price ID is required",
+          error: "Invalid plan",
           message: "Please select a plan to continue",
         },
         { status: 400 },
       )
     }
 
-    // 3. Validate priceId against known price IDs
-    const validPriceIds = validatePriceIds()
+    // 3. Resolve the plan's Stripe price on the server (never trust a price from the client)
+    const priceId = getPlanPriceId(plan.id)
 
-    if (!validPriceIds.includes(priceId)) {
+    if (!priceId) {
+      console.error(`[Checkout] No Stripe price configured for plan ${plan.id}`)
       return NextResponse.json(
         {
-          error: "Invalid price ID",
-          message: "The selected plan is not valid",
+          error: "Plan not available",
+          message: "This plan isn't available yet. Please try again soon.",
         },
-        { status: 400 },
+        { status: 503 },
       )
     }
 
@@ -68,6 +69,23 @@ export async function POST(request: Request) {
           message: "Could not find your account. Please try logging in again.",
         },
         { status: 404 },
+      )
+    }
+
+    // 4b. Don't start a second subscription for someone who already has one
+    const { data: subData } = await supabase
+      .from("users")
+      .select("subscription_status")
+      .eq("id", user.id)
+      .single()
+
+    if (subData?.subscription_status === "active" || subData?.subscription_status === "trialing") {
+      return NextResponse.json(
+        {
+          error: "Already subscribed",
+          message: "You already have a plan. Manage it from Settings.",
+        },
+        { status: 409 },
       )
     }
 
@@ -120,10 +138,11 @@ export async function POST(request: Request) {
           quantity: 1,
         },
       ],
-      success_url: `${origin}/dashboard/settings?session_id={CHECKOUT_SESSION_ID}&success=true`,
+      success_url: `${origin}/pricing?session_id={CHECKOUT_SESSION_ID}&subscribed=true`,
       cancel_url: `${origin}/pricing?canceled=true`,
       metadata: {
         userId: userData.id,
+        planId: plan.id,
       },
       customer_update: {
         address: "auto",
@@ -133,6 +152,7 @@ export async function POST(request: Request) {
       subscription_data: {
         metadata: {
           userId: userData.id,
+          planId: plan.id,
         },
       },
     })

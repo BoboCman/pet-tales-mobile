@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Coins, Calendar, Zap } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { getPlanById } from "@/lib/pricing-config"
 import { useToast } from "@/hooks/use-toast"
 
 interface CreditData {
@@ -21,6 +22,8 @@ export function SubscriptionCard({ user }: { user: any }) {
   const [credits, setCredits] = useState<CreditData | null>(null)
   const [loading, setLoading] = useState(true)
   const [daysUntilNext, setDaysUntilNext] = useState<number | null>(null)
+  const [planId, setPlanId] = useState<string | null>(null)
+  const [openingPortal, setOpeningPortal] = useState(false)
   const searchParams = useSearchParams()
   const { toast } = useToast()
 
@@ -41,9 +44,18 @@ export function SubscriptionCard({ user }: { user: any }) {
 
         setCredits(data)
 
+        // Plan info lives in separate columns; a missing column must not break the credits view
+        const { data: subData } = await supabase
+          .from("users")
+          .select("subscription_tier, subscription_status")
+          .eq("id", user.id)
+          .single()
+        const isSubscribed = subData?.subscription_status === "active" || subData?.subscription_status === "trialing"
+        setPlanId(isSubscribed && subData?.subscription_tier ? subData.subscription_tier : null)
+
         if (data.last_weekly_credit_date) {
           const lastDate = new Date(data.last_weekly_credit_date)
-          const nextDate = new Date(lastDate.getTime() + 7 * 24 * 60 * 60 * 1000)
+          const nextDate = new Date(lastDate.getTime() + 30 * 24 * 60 * 60 * 1000)
           const now = new Date()
           const daysLeft = Math.ceil((nextDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
           setDaysUntilNext(Math.max(0, daysLeft))
@@ -95,6 +107,24 @@ export function SubscriptionCard({ user }: { user: any }) {
   const freeCredits = credits?.free_credits || 0
   const purchasedCredits = credits?.purchased_credits || 0
   const totalCredits = freeCredits + purchasedCredits
+  const plan = planId ? getPlanById(planId) : undefined
+
+  const openBillingPortal = async () => {
+    setOpeningPortal(true)
+    try {
+      const res = await fetch("/api/stripe/billing-portal", { method: "POST" })
+      const data = await res.json()
+      if (!res.ok || !data.url) throw new Error(data.message || "Couldn't open billing")
+      window.location.href = data.url
+    } catch (error) {
+      toast({
+        title: "Couldn't open billing",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      })
+      setOpeningPortal(false)
+    }
+  }
 
   return (
     <Card>
@@ -115,28 +145,37 @@ export function SubscriptionCard({ user }: { user: any }) {
           {/* Credit Breakdown */}
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="bg-white/50 dark:bg-gray-800/50 rounded-lg p-3">
-              <div className="text-muted-foreground mb-1">Free</div>
+              <div className="text-muted-foreground mb-1">Free / plan</div>
               <div className="font-semibold text-lg">{freeCredits}</div>
             </div>
             <div className="bg-white/50 dark:bg-gray-800/50 rounded-lg p-3">
-              <div className="text-muted-foreground mb-1">Purchased</div>
+              <div className="text-muted-foreground mb-1">Packs</div>
               <div className="font-semibold text-lg">{purchasedCredits}</div>
             </div>
           </div>
         </div>
 
-        {daysUntilNext !== null && (
+        {plan && (
+          <Alert className="bg-teal-50 dark:bg-teal-900/20 border-teal-200 dark:border-teal-700">
+            <Zap className="h-4 w-4 text-teal-600" />
+            <AlertDescription className="text-teal-900 dark:text-teal-100">
+              You're on {plan.name}: {plan.talesPerMonth} tales every month.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {!plan && daysUntilNext !== null && (
           <Alert className="bg-teal-50 dark:bg-teal-900/20 border-teal-200 dark:border-teal-700">
             <Calendar className="h-4 w-4 text-teal-600" />
             <AlertDescription className="text-teal-900 dark:text-teal-100">
               {daysUntilNext === 0 ? (
                 <>
                   <Zap className="inline h-4 w-4 mr-1" />
-                  Your weekly free credit is available now!
+                  Your free monthly tale is available now!
                 </>
               ) : (
                 <>
-                  Next free credit in {daysUntilNext} day{daysUntilNext !== 1 ? "s" : ""}
+                  Next free tale in {daysUntilNext} day{daysUntilNext !== 1 ? "s" : ""}
                 </>
               )}
             </AlertDescription>
@@ -144,25 +183,32 @@ export function SubscriptionCard({ user }: { user: any }) {
         )}
 
         <div className="space-y-3 pt-4 border-t">
-          <Button asChild className="w-full" size="lg">
-            <Link href="/pricing">
+          {plan ? (
+            <Button onClick={openBillingPortal} disabled={openingPortal} className="w-full" size="lg">
               <Coins className="mr-2 h-4 w-4" />
-              Buy Credit Packs
-            </Link>
-          </Button>
+              {openingPortal ? "Opening..." : "Manage plan"}
+            </Button>
+          ) : (
+            <Button asChild className="w-full" size="lg">
+              <Link href="/pricing">
+                <Coins className="mr-2 h-4 w-4" />
+                See Plans
+              </Link>
+            </Button>
+          )}
 
           <div className="text-center">
-            <p className="text-xs text-muted-foreground">Get 1 free credit every week • Credits never expire</p>
+            <p className="text-xs text-muted-foreground">Get 1 free tale every month • Pack tales never expire</p>
           </div>
         </div>
 
         <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-sm">
           <h4 className="font-semibold mb-2">QUICK FACTS:</h4>
           <ul className="space-y-1.5 text-muted-foreground">
-            <li>• Started with 3 welcome credits</li>
-            <li>• Get 1 free credit weekly</li>
-            <li>• Buy packs from $4.99</li>
-            <li>• No subscription needed</li>
+            <li>• Your first tale is free</li>
+            <li>• Get 1 free tale every month</li>
+            <li>• Plans from $4.99 a month</li>
+            <li>• Plan tales reset monthly; pack tales never expire</li>
           </ul>
         </div>
       </CardContent>

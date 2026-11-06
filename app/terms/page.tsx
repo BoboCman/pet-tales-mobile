@@ -35,7 +35,7 @@ export default function TermsPage() {
       <div className="container max-w-4xl mx-auto py-12 px-4">
         <div className="bg-white dark:bg-gray-950 rounded-lg shadow-sm border p-8 md:p-12">
           <h1 className="text-4xl font-bold mb-4">Terms of Service</h1>
-          <p className="text-muted-foreground mb-8">Effective Date: December 6, 2025</p>
+          <p className="text-muted-foreground mb-8">Effective Date: November 6, 2026</p>
 
           <div className="prose prose-gray dark:prose-invert max-w-none space-y-8">
             {/* Introduction */}
@@ -391,27 +391,40 @@ export default function TermsPage() {
 
               <h3 className="text-lg font-medium mt-4 mb-2">8.2 Free Credits</h3>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                New users receive three (3) complimentary credits upon account creation. Additionally, active users
-                receive one (1) free credit each week. Free credits are subject to the same terms as purchased credits.
-                We reserve the right to modify, suspend, or discontinue the free credit program at any time.
+                New users receive one (1) complimentary credit upon account creation. Users without a paid plan also
+                receive one (1) free credit every 30 days; free credits do not accumulate beyond one (1). Free credits
+                are subject to the same terms as purchased credits. We reserve the right to modify, suspend, or
+                discontinue the free credit program at any time.
               </p>
 
-              <h3 className="text-lg font-medium mt-4 mb-2">8.3 Credit Packs and Pricing</h3>
+              <h3 className="text-lg font-medium mt-4 mb-2">8.3 Monthly Plans and Automatic Renewal</h3>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
-                Credit packs are available for purchase at the following rates (subject to change):
+                We offer the following monthly plans (prices in USD, subject to change):
               </p>
               <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300 ml-4">
-                <li>Quick Fix: 5 credits for $4.99 USD</li>
-                <li>Party Pack: 10 credits for $7.99 USD</li>
-                <li>Creator Bundle: 25 credits for $17.99 USD</li>
+                <li>Pet Parent: 10 credits per month for $4.99 per month</li>
+                <li>Super Fan: 20 credits per month for $9.99 per month</li>
               </ul>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed mt-4">
-                Pricing is subject to change. Any price changes will apply only to future purchases.
+                <strong>Automatic renewal:</strong> Plans renew automatically each month and your payment method is
+                charged the plan price at the start of each billing period until you cancel. Each paid billing period
+                sets your plan credits to the plan&apos;s monthly amount. Unused plan credits do not roll over to the
+                next billing period.
+              </p>
+              <p className="text-gray-700 dark:text-gray-300 leading-relaxed mt-4">
+                <strong>Cancellation:</strong> You can cancel at any time from your account settings (Manage plan).
+                Cancellation takes effect at the end of the current billing period; you keep your plan credits until
+                then and will not be charged again. We will notify you before any price change takes effect, and you
+                may cancel before the new price applies.
+              </p>
+              <p className="text-gray-700 dark:text-gray-300 leading-relaxed mt-4">
+                Where offered, one-time credit packs are digital goods priced as shown at checkout. Pricing is subject
+                to change, and price changes apply only to future purchases.
               </p>
 
               <h3 className="text-lg font-medium mt-4 mb-2">8.4 Credit Validity</h3>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                Purchased credits never expire and remain valid as long as your account is active and in good standing.
+                Credits from one-time credit packs never expire and remain valid as long as your account is active and in good standing.
                 In the event of account termination for violation of these Terms, any unused credits may be forfeited
                 without refund.
               </p>
@@ -426,9 +439,10 @@ export default function TermsPage() {
 
               <h3 className="text-lg font-medium mt-4 mb-2">8.6 Refund Policy</h3>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                <strong>Digital Goods:</strong> Credit packs are digital goods delivered immediately upon purchase. As
-                such, all sales are final and non-refundable, except as required by applicable law or as expressly
-                provided below.
+                <strong>Digital Goods:</strong> Plan credits and credit packs are digital goods delivered immediately
+                upon payment. As such, plan charges and pack purchases are final and non-refundable, including partial
+                billing periods after cancellation, except as required by applicable law or as expressly provided
+                below.
               </p>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed mt-4">
                 <strong>Technical Failures:</strong> If a credit is consumed but the Service fails to generate your Pet

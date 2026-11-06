@@ -1,144 +1,86 @@
-export type BillingInterval = "monthly" | "annual"
+/**
+ * Subscription plans (monthly only for launch).
+ *
+ * Each plan grants a set number of tales per billing month. Plan tales reset on every renewal
+ * (no rollover); tales bought in packs never expire and are used after plan tales.
+ *
+ * Stripe price IDs come from env vars. A plan whose env var is missing is shown as
+ * "coming soon" and cannot be checked out, so the app never crashes on a missing price.
+ *
+ * Plain data only (no secrets), so it is safe to import from client components.
+ */
 
-export interface PricingTier {
-  id: "basic" | "pro" | "premium"
+export type PlanId = "pet_parent" | "super_fan"
+
+export interface SubscriptionPlan {
+  id: PlanId
   name: string
   description: string
+  /** Monthly price in US dollars */
   monthlyPrice: number
-  annualPrice: number
-  credits: number
+  /** Tales granted each billing month */
+  talesPerMonth: number
   features: string[]
-  stripePriceIds: {
-    monthly: string
-    annual: string
-  }
   popular?: boolean
 }
 
-/**
- * Helper function to get required environment variable with clear error message
- * Only runs when actually accessed, not at module load time
- */
-function getRequiredEnvVar(name: string): string {
-  const value = process.env[name]
-  if (!value) {
-    throw new Error(
-      `Missing required environment variable: ${name}\n` +
-        `Please add this to your Vercel project settings.\n` +
-        `Go to: Vercel Dashboard → Your Project → Settings → Environment Variables`,
-    )
-  }
-  return value
-}
+/** Free tier: tales at signup, then one a month (never stacks above this). */
+export const FREE_TIER = {
+  welcomeTales: 1,
+  monthlyTales: 1,
+  /** Days between free monthly tales */
+  monthlyIntervalDays: 30,
+} as const
 
-/**
- * Pricing tiers configuration
- * Uses getter functions for stripePriceIds to enable lazy evaluation
- */
-export const pricingTiers: PricingTier[] = [
+export const subscriptionPlans: SubscriptionPlan[] = [
   {
-    id: "basic",
-    name: "Basic",
-    description: "Perfect for casual pet owners",
-    monthlyPrice: 9,
-    annualPrice: 90,
-    credits: 25,
-    features: [
-      "25 videos per month",
-      "Standard processing",
-      "HD video quality",
-      "Email support",
-      "All personality voices",
-    ],
-    // Getter function - only evaluates when accessed
-    get stripePriceIds() {
-      return {
-        monthly: getRequiredEnvVar("STRIPE_BASIC_MONTHLY_PRICE_ID"),
-        annual: getRequiredEnvVar("STRIPE_BASIC_ANNUAL_PRICE_ID"),
-      }
-    },
+    id: "pet_parent",
+    name: "Pet Parent",
+    description: "For pet owners who share a few moments a month",
+    monthlyPrice: 4.99,
+    talesPerMonth: 10,
+    features: ["10 tales every month", "All narrator voices and vibes", "Share anywhere with one link", "Cancel anytime"],
   },
   {
-    id: "pro",
-    name: "Pro",
-    description: "For active pet owners",
-    monthlyPrice: 19,
-    annualPrice: 190,
-    credits: 75,
+    id: "super_fan",
+    name: "Super Fan",
+    description: "For owners who post every few days",
+    monthlyPrice: 9.99,
+    talesPerMonth: 20,
     popular: true,
     features: [
-      "75 videos per month",
-      "Priority processing",
-      "HD video quality",
-      "Priority email support",
-      "All personality voices",
-      "Custom voices (coming soon)",
+      "20 tales every month",
+      "All narrator voices and vibes",
+      "Tales for all your pets",
+      "Share anywhere with one link",
+      "Cancel anytime",
     ],
-    // Getter function - only evaluates when accessed
-    get stripePriceIds() {
-      return {
-        monthly: getRequiredEnvVar("STRIPE_PRO_MONTHLY_PRICE_ID"),
-        annual: getRequiredEnvVar("STRIPE_PRO_ANNUAL_PRICE_ID"),
-      }
-    },
-  },
-  {
-    id: "premium",
-    name: "Premium",
-    description: "For pet content creators",
-    monthlyPrice: 49,
-    annualPrice: 490,
-    credits: 200,
-    features: [
-      "200 videos per month",
-      "Priority processing",
-      "4K video quality",
-      "Priority support",
-      "All personality voices",
-      "Custom voices",
-      "API access (coming soon)",
-      "White-label option (coming soon)",
-    ],
-    // Getter function - only evaluates when accessed
-    get stripePriceIds() {
-      return {
-        monthly: getRequiredEnvVar("STRIPE_PREMIUM_MONTHLY_PRICE_ID"),
-        annual: getRequiredEnvVar("STRIPE_PREMIUM_ANNUAL_PRICE_ID"),
-      }
-    },
   },
 ]
 
-export function getPricingTier(tierId: string): PricingTier | undefined {
-  return pricingTiers.find((tier) => tier.id === tierId)
+/** Server-only: env var that holds each plan's Stripe monthly price ID */
+const PRICE_ENV_VARS: Record<PlanId, string> = {
+  pet_parent: "STRIPE_PET_PARENT_MONTHLY_PRICE_ID",
+  super_fan: "STRIPE_SUPER_FAN_MONTHLY_PRICE_ID",
 }
 
-export function getAnnualSavings(tier: PricingTier): number {
-  return tier.monthlyPrice * 12 - tier.annualPrice
+export function getPlanById(planId: string): SubscriptionPlan | undefined {
+  return subscriptionPlans.find((plan) => plan.id === planId)
 }
 
-export function getAnnualSavingsPercentage(tier: PricingTier): number {
-  const savings = getAnnualSavings(tier)
-  const annualCostIfMonthly = tier.monthlyPrice * 12
-  return Math.round((savings / annualCostIfMonthly) * 100)
+/** Server-only: the plan's Stripe price ID, or null if not configured */
+export function getPlanPriceId(planId: PlanId): string | null {
+  const value = process.env[PRICE_ENV_VARS[planId]]
+  return value && value.trim() ? value.trim() : null
 }
 
-/**
- * Returns all valid Stripe price IDs for validation in API routes
- * Accessing stripePriceIds triggers the getter functions
- */
-export function validatePriceIds(): string[] {
-  const allPriceIds: string[] = []
+/** Server-only: find the plan a Stripe price ID belongs to */
+export function getPlanByPriceId(priceId: string | null | undefined): SubscriptionPlan | undefined {
+  if (!priceId) return undefined
+  return subscriptionPlans.find((plan) => getPlanPriceId(plan.id) === priceId)
+}
 
-  pricingTiers.forEach((tier) => {
-    const ids = tier.stripePriceIds // Triggers getter
-    if (ids.monthly) {
-      allPriceIds.push(ids.monthly)
-    }
-    if (ids.annual) {
-      allPriceIds.push(ids.annual)
-    }
-  })
-
-  return allPriceIds
+/** Server-only: IDs of plans that have a Stripe price configured */
+export function getConfiguredPlanIds(): PlanId[] {
+  return subscriptionPlans.filter((plan) => getPlanPriceId(plan.id)).map((plan) => plan.id)
 }

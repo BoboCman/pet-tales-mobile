@@ -5,13 +5,13 @@ import { PublicFooter } from "@/components/public-footer"
 export const metadata: Metadata = {
   title: "Create Account",
   description:
-    "Join Pet Tale AI free - Get 3 free tales to start plus 1 free tale every week. Create AI-narrated pet videos in minutes.",
+    "Join Pet Tale AI free - Your first tale is free, plus 1 free tale every month. Create AI-narrated pet videos in minutes.",
   alternates: {
     canonical: "https://www.pettaleai.com/auth/signup",
   },
   openGraph: {
     title: "Join Pet Tale AI Free",
-    description: "Get 3 free tales to start plus 1 free tale every week. Create AI-narrated pet videos in minutes.",
+    description: "Your first tale is free, plus 1 free tale every month. Create AI-narrated pet videos in minutes.",
   },
 }
 

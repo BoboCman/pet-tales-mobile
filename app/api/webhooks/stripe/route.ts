@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { stripe } from "@/lib/stripe"
 import { addPurchasedCredits } from "@/lib/credits/operations-admin"
 import { getPackById } from "@/lib/stripe/pack-config"
+import { grantPlanTalesForInvoice, syncSubscription } from "@/lib/credits/subscriptions"
 
 /**
  * STRIPE WEBHOOK HANDLER FOR CREDIT PACK PURCHASES
@@ -64,7 +65,43 @@ export async function POST(request: NextRequest) {
       id: event.id,
     })
 
-    // STEP 4: Filter event types - only process checkout.session.completed
+    // STEP 4: Subscription events (plans). Pack purchases continue below.
+    const eventObject = event.data.object as any
+
+    if (event.type === "checkout.session.completed" && eventObject.mode === "subscription") {
+      const subscriptionId =
+        typeof eventObject.subscription === "string" ? eventObject.subscription : eventObject.subscription?.id
+      if (!subscriptionId) {
+        console.error("[Webhook] ❌ Subscription checkout without a subscription ID:", eventObject.id)
+        return NextResponse.json({ error: "Missing subscription" }, { status: 400 })
+      }
+      const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+      const { error } = await syncSubscription(subscription)
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+      // Tales are granted by invoice.paid, which Stripe sends for the first payment too.
+      return NextResponse.json({ received: true, subscription_synced: true })
+    }
+
+    if (event.type === "invoice.paid") {
+      const result = await grantPlanTalesForInvoice(eventObject)
+      if (result.error) {
+        console.error("[Webhook] ❌ Failed to grant plan tales:", result.error)
+        return NextResponse.json({ error: result.error.message }, { status: 500 })
+      }
+      return NextResponse.json({ received: true, ...result, error: undefined })
+    }
+
+    if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
+      const { error } = await syncSubscription(eventObject)
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+      return NextResponse.json({ received: true, subscription_synced: true })
+    }
+
+    // STEP 4b: Everything else except pack checkouts is ignored
     if (event.type !== "checkout.session.completed") {
       console.log("[Webhook] ℹ️ Ignoring event type:", event.type)
       return NextResponse.json({ received: true })
@@ -90,10 +127,9 @@ export async function POST(request: NextRequest) {
         pack_id: !!pack_id,
         pack_credits: !!pack_credits,
       })
-      return NextResponse.json(
-        { error: "Missing required metadata (userId, pack_id, or pack_credits)" },
-        { status: 400 },
-      )
+      // Not a PetTaleAI pack checkout (e.g. another app on a shared Stripe account).
+      // Acknowledge so Stripe doesn't retry or disable the endpoint.
+      return NextResponse.json({ received: true, ignored: "not a PetTaleAI pack checkout" })
     }
 
     const paymentIntentId =
@@ -193,7 +229,12 @@ export async function GET() {
       "Comprehensive error handling and logging",
       "Pack validation against database",
     ],
-    supported_events: ["checkout.session.completed"],
+    supported_events: [
+      "checkout.session.completed",
+      "invoice.paid",
+      "customer.subscription.updated",
+      "customer.subscription.deleted",
+    ],
     required_metadata: ["userId", "pack_id", "pack_credits"],
     required_env_vars: ["STRIPE_WEBHOOK_SECRET"],
     testing: {
