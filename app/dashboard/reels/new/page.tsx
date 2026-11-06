@@ -21,14 +21,11 @@ export default async function NewReelPage({ searchParams }: NewReelPageProps) {
   // Get user's pets
   const pets = await getPets()
 
-  // If no pets, redirect to create pet first
-  if (pets.length === 0) {
-    redirect("/dashboard/pets/new?redirectTo=/dashboard/reels/new")
-  }
-
-  // Get pre-selected pet from URL parameters
+  // No pets yet is fine: the upload screen asks for just a name, dog/cat and
+  // boy/girl right before creating the tale.
   const preSelectedPetId = searchParams?.pet as string | undefined
-  const selectedPetId = preSelectedPetId && pets.find((p) => p.id === preSelectedPetId) ? preSelectedPetId : pets[0].id
+  const selectedPetId =
+    preSelectedPetId && pets.find((p) => p.id === preSelectedPetId) ? preSelectedPetId : pets[0]?.id || ""
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -49,10 +46,10 @@ export default async function NewReelPage({ searchParams }: NewReelPageProps) {
       {/* Main Content */}
       <div className="container max-w-md lg:max-w-6xl mx-auto px-4 py-6">
         <div className="mb-6 text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Create Your Pet's Tale</h2>
-          <p className="text-gray-600 text-sm">
-            Record or upload a video of your pet and we'll add AI narration and captions to create a shareable Pet Tale.
-          </p>
+          <h2 className="text-2xl font-bold text-gray-900 mb-1">
+            {pets.length === 0 ? "Let's make your first tale" : "New tale"}
+          </h2>
+          <p className="text-gray-600 text-sm">Pick a clip. We'll add your pet's voice and captions.</p>
         </div>
 
         <VideoUploadInterface pets={pets} selectedPetId={selectedPetId} />

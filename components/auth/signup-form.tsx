@@ -110,8 +110,8 @@ export function SignupForm({ redirectTo }: SignupFormProps) {
         description: "Welcome to Pet Tale AI. Let's create some amazing pet videos!",
       })
 
-      // Force redirect to dashboard/pets with new user parameters
-      const redirectUrl = redirectTo || "/dashboard/pets?from=signup&newUser=true"
+      // New users go straight to making their first tale
+      const redirectUrl = redirectTo || "/dashboard/reels/new?from=signup"
       window.location.href = redirectUrl
     } catch (error: any) {
       toast({
