@@ -760,37 +760,63 @@ async function uploadWithEagerAsync(
 }
 
 /**
- * Get video duration from Cloudinary
+ * Length in seconds of a video or audio asset in Cloudinary, or null if it can't be found.
+ * The Admin API's resource() call does not always include `duration`, so this falls back to
+ * explicit(), which returns the same details as the original upload.
  */
-async function getVideoDuration(publicId: string): Promise<number> {
+async function getMediaDuration(publicId: string): Promise<number | null> {
   try {
-    console.log("📏 Getting video duration for:", publicId)
-    const resource = await cloudinary.api.resource(publicId, {
-      resource_type: "video",
-    })
-    console.log("✅ Video duration retrieved:", resource.duration, "seconds")
-    return resource.duration || 10
+    const resource = await cloudinary.api.resource(publicId, { resource_type: "video" })
+    if (typeof resource.duration === "number" && resource.duration > 0) return resource.duration
   } catch (error) {
-    console.warn("⚠️ Could not get video duration, using default:", error)
-    return 10
+    console.warn("⚠️ resource() lookup failed for", publicId, describeError(error, "unknown"))
+  }
+  try {
+    const info: any = await cloudinary.uploader.explicit(publicId, { resource_type: "video", type: "upload" })
+    if (typeof info.duration === "number" && info.duration > 0) return info.duration
+  } catch (error) {
+    console.warn("⚠️ explicit() lookup failed for", publicId, describeError(error, "unknown"))
+  }
+  return null
+}
+
+/** Last cue end time in a WebVTT file, in seconds (e.g. "00:00:27.480" -> 27.48). */
+async function getVttEndSeconds(vttUrl: string | null | undefined): Promise<number | null> {
+  if (!vttUrl) return null
+  try {
+    const res = await fetch(vttUrl)
+    if (!res.ok) return null
+    const text = await res.text()
+    let last = 0
+    for (const match of text.matchAll(/-->\s*(?:(\d+):)?(\d{1,2}):(\d{2})[.,](\d{1,3})/g)) {
+      const [, h, m, sec, ms] = match
+      const seconds = Number(h || 0) * 3600 + Number(m) * 60 + Number(sec) + Number(ms.padEnd(3, "0")) / 1000
+      if (seconds > last) last = seconds
+    }
+    return last > 0 ? last : null
+  } catch {
+    return null
   }
 }
 
+/** Video length; 10s is only a last resort and just affects how many times the clip loops. */
+async function getVideoDuration(publicId: string): Promise<number> {
+  const duration = await getMediaDuration(publicId)
+  console.log("📏 Video duration:", duration ?? "unknown (using 10s)")
+  return duration ?? 10
+}
+
 /**
- * Get audio duration from Cloudinary
+ * Narration length. This sets how long the finished tale is, so it never silently falls back
+ * to a guess: a wrong value cut tales off after 10 seconds.
  */
-async function getAudioDuration(publicId: string): Promise<number> {
-  try {
-    console.log("📏 Getting audio duration for:", publicId)
-    const resource = await cloudinary.api.resource(publicId, {
-      resource_type: "video", // Audio files use "video" resource type
-    })
-    console.log("✅ Audio duration retrieved:", resource.duration, "seconds")
-    return resource.duration || 10
-  } catch (error) {
-    console.warn("⚠️ Could not get audio duration, using default:", error)
-    return 10
-  }
+async function getAudioDuration(publicId: string, vttUrl?: string | null): Promise<number> {
+  const fromCloudinary = await getMediaDuration(publicId)
+  if (fromCloudinary) return fromCloudinary
+  // Captions end when the narration ends; add a little so the last word isn't clipped
+  const fromCaptions = await getVttEndSeconds(vttUrl)
+  if (fromCaptions) return Math.round((fromCaptions + 0.75) * 100) / 100
+  throw new Error(`Could not find how long the narration is (${publicId})`)
 }
 
 /**
@@ -966,7 +992,7 @@ async function createMergedVideoWithCloudinarySubtitles(
 
     const { data: existingEntry } = await supabaseAdmin
       .from("diary_entries")
-      .select("cloudinary_audio_public_id, caption_status")
+      .select("cloudinary_audio_public_id, caption_status, caption_vtt_url")
       .eq("id", entryId)
       .single()
 
@@ -979,7 +1005,7 @@ async function createMergedVideoWithCloudinarySubtitles(
       console.log("  - Caption status:", existingEntry.caption_status)
 
       audioPublicId = existingEntry.cloudinary_audio_public_id
-      audioDuration = await getAudioDuration(audioPublicId)
+      audioDuration = await getAudioDuration(audioPublicId, existingEntry.caption_vtt_url)
     } else {
       console.log("📤 Audio not found in Cloudinary, uploading with Whisper HYBRID captions...")
       const audioUpload = await uploadAudioWithCaptions(audioUrl, entryId)
