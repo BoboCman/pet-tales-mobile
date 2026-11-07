@@ -24,13 +24,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
     {
       url: `${baseUrl}/terms`,
-      lastModified: new Date("2025-12-06"),
+      lastModified: new Date("2026-11-07"),
       changeFrequency: "yearly",
       priority: 0.3,
     },
     {
       url: `${baseUrl}/privacy`,
-      lastModified: new Date("2025-12-06"),
+      lastModified: new Date("2026-11-07"),
       changeFrequency: "yearly",
       priority: 0.3,
     },

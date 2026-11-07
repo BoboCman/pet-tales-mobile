@@ -11,8 +11,8 @@ import { getUserDetails } from "@/lib/supabase/server"
 import { Settings, User, CreditCard, Shield } from "lucide-react"
 
 export const metadata: Metadata = {
-  title: "Settings | Pet Tales AI",
-  description: "Manage your Pet Tales AI account settings and preferences",
+  title: "Settings",
+  description: "Manage your Pet Tale AI account settings and preferences",
 }
 
 export const dynamic = "force-dynamic"

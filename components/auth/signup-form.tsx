@@ -30,7 +30,7 @@ const signupSchema = z.object({
     .optional()
     .or(z.literal("")),
   agreeToTerms: z.boolean().refine((val) => val === true, {
-    message: "You must accept the terms and conditions",
+    message: "Please confirm you're 18 or older and accept the Terms",
   }),
 })
 
@@ -91,7 +91,7 @@ export function SignupForm({ redirectTo }: SignupFormProps) {
           await supabase.from("consent_logs").insert({
             email: data.email,
             timestamp: consentTimestamp,
-            consent_text: "I agree to the Terms of Service and Privacy Policy",
+            consent_text: "I'm 18 or older and agree to the Terms of Service and Privacy Policy",
             has_explicit_agreement: true,
             terms_version: LEGAL_VERSIONS.TERMS_VERSION,
             action_type: "signup_consent",
@@ -226,7 +226,7 @@ export function SignupForm({ redirectTo }: SignupFormProps) {
                     </FormControl>
                     <div className="space-y-1 leading-none">
                       <FormLabel className="text-sm font-normal cursor-pointer" htmlFor="agreeToTerms">
-                        I agree to the{" "}
+                        I&apos;m 18 or older and agree to the{" "}
                         <Link
                           href="/terms"
                           className="underline underline-offset-4 hover:text-primary font-medium"

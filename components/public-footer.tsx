@@ -6,7 +6,7 @@ export function PublicFooter() {
       <div className="container max-w-6xl mx-auto px-4 py-6">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           {/* Copyright - Left on desktop, top on mobile */}
-          <div className="text-sm text-muted-foreground">© 2025 Glendale AI, LLC</div>
+          <div className="text-sm text-muted-foreground">© {new Date().getFullYear()} Glendale AI, LLC</div>
 
           {/* Links - Right on desktop, bottom on mobile */}
           <nav className="flex items-center gap-6 text-sm">

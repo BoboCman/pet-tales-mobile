@@ -5,36 +5,36 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase/client"
 import { Mail, Info } from "lucide-react"
+import { SEO_CONFIG } from "@/lib/constants/seo"
 
 export function RequestDataButton() {
   const [isRequesting, setIsRequesting] = useState(false)
   const { toast } = useToast()
   const supabase = createClient()
 
+  // Opens an email to us so the request actually reaches a person (GDPR/CCPA: answer within 30 days)
   const handleRequestData = async () => {
     setIsRequesting(true)
-
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser()
-
-      if (!user?.email) {
-        throw new Error("No user email found")
-      }
-
-      console.log("Data export requested for:", user.email)
-
+      const email = user?.email ?? ""
+      const subject = encodeURIComponent("Data export request")
+      const body = encodeURIComponent(
+        `Hi Pet Tale AI team,\n\nPlease send me a copy of my data.\n\nAccount email: ${email}\n\nThank you!`,
+      )
+      window.location.href = `mailto:${SEO_CONFIG.contactEmail}?subject=${subject}&body=${body}`
       toast({
-        title: "Data export requested",
-        description: `We'll send your complete data export to ${user.email} within 30 days.`,
-        duration: 5000,
+        title: "Opening your email app",
+        description: `Send the email and we'll reply to ${email || "you"} within 30 days.`,
+        duration: 6000,
       })
-    } catch (error: any) {
+    } catch (error) {
       console.error("Request error:", error)
       toast({
-        title: "Request failed",
-        description: "Unable to submit your request. Please contact support@pettaleai.com",
+        title: "Couldn't open your email app",
+        description: `Email ${SEO_CONFIG.contactEmail} to request your data.`,
         variant: "destructive",
       })
     } finally {
@@ -58,7 +58,7 @@ export function RequestDataButton() {
                 <li>Tale content & video links</li>
                 <li>Purchase history</li>
               </ul>
-              <p className="text-blue-700 dark:text-blue-300">We'll email your data within 30 days per GDPR.</p>
+              <p className="text-blue-700 dark:text-blue-300">Email us and we'll send your data within 30 days.</p>
             </div>
           </div>
         </div>
@@ -72,7 +72,7 @@ export function RequestDataButton() {
         className="w-full sm:w-auto sm:min-w-[140px] bg-transparent"
       >
         <Mail className="h-4 w-4 mr-2" />
-        {isRequesting ? "Requesting..." : "Request Data"}
+        Request Data
       </Button>
     </div>
   )

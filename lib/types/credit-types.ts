@@ -6,8 +6,8 @@ export interface PreflightCheckResult {
 }
 
 export const CREDIT_MESSAGES = {
-  OUT_OF_CREDITS: "You're out of credits.",
+  OUT_OF_CREDITS: "You're out of tales.",
   AUTH_REQUIRED: "Please sign in to continue.",
-  SERVER_ERROR: "Unable to check credit balance.",
+  SERVER_ERROR: "Unable to check your tales.",
   UNEXPECTED_ERROR: "An unexpected error occurred.",
 } as const
