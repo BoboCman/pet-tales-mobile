@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { v2 as cloudinary } from "cloudinary"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import OpenAI from "openai"
+import { isInternalRequest } from "@/lib/api/internal-auth"
 
 export const maxDuration = 300
 
@@ -1248,6 +1249,9 @@ async function createMergedVideoWithCloudinarySubtitles(
  * Main API handler
  */
 export async function POST(request: NextRequest) {
+  if (!isInternalRequest(request)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
   const startTime = Date.now()
   console.log("🎬 =====================================")
   console.log("🎬 8-STEP CLOUDINARY MERGED VIDEO API - WHISPER HYBRID INTEGRATION")

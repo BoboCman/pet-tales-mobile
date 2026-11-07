@@ -36,7 +36,7 @@ export function StructuredData() {
       "@type": "Offer",
       price: "0",
       priceCurrency: "USD",
-      description: "First tale free, then 1 free tale per month. Plans from $4.99 a month.",
+      description: "First tale free. Plans from $4.99 a month.",
     },
     featureList: [
       "AI voice narration",

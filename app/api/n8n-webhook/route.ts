@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { isInternalRequest } from "@/lib/api/internal-auth"
 
 export async function POST(request: NextRequest) {
+  if (!isInternalRequest(request)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
   try {
     console.log("📥 N8N Webhook received")
 

@@ -4,6 +4,7 @@ import { v2 as cloudinary } from "cloudinary"
 import { createClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 import { getAppBaseUrl } from "@/lib/utils/app-url"
+import { internalAuthHeaders } from "@/lib/api/internal-auth"
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -152,7 +153,7 @@ export async function POST(request: NextRequest) {
     try {
       const mergeResponse = await fetch(`${getAppBaseUrl()}/api/cloudinary/merged-video`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...internalAuthHeaders() },
         body: JSON.stringify({ entryId: entry.id }),
       })
       if (!mergeResponse.ok) {

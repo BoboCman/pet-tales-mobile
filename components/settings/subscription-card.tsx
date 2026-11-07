@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Coins, Calendar, Zap } from "lucide-react"
+import { Coins, Zap } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { getPlanById } from "@/lib/pricing-config"
 import { useToast } from "@/hooks/use-toast"
@@ -15,13 +15,11 @@ import { useToast } from "@/hooks/use-toast"
 interface CreditData {
   free_credits: number
   purchased_credits: number
-  last_weekly_credit_date: string | null
 }
 
 export function SubscriptionCard({ user }: { user: any }) {
   const [credits, setCredits] = useState<CreditData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [daysUntilNext, setDaysUntilNext] = useState<number | null>(null)
   const [planId, setPlanId] = useState<string | null>(null)
   const [openingPortal, setOpeningPortal] = useState(false)
   const searchParams = useSearchParams()
@@ -36,7 +34,7 @@ export function SubscriptionCard({ user }: { user: any }) {
         const supabase = createClient()
         const { data, error } = await supabase
           .from("users")
-          .select("free_credits, purchased_credits, last_weekly_credit_date")
+          .select("free_credits, purchased_credits")
           .eq("id", user.id)
           .single()
 
@@ -52,14 +50,6 @@ export function SubscriptionCard({ user }: { user: any }) {
           .single()
         const isSubscribed = subData?.subscription_status === "active" || subData?.subscription_status === "trialing"
         setPlanId(isSubscribed && subData?.subscription_tier ? subData.subscription_tier : null)
-
-        if (data.last_weekly_credit_date) {
-          const lastDate = new Date(data.last_weekly_credit_date)
-          const nextDate = new Date(lastDate.getTime() + 30 * 24 * 60 * 60 * 1000)
-          const now = new Date()
-          const daysLeft = Math.ceil((nextDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-          setDaysUntilNext(Math.max(0, daysLeft))
-        }
 
         if (packPurchase === "success" && sessionId) {
           toast({
@@ -164,24 +154,6 @@ export function SubscriptionCard({ user }: { user: any }) {
           </Alert>
         )}
 
-        {!plan && daysUntilNext !== null && (
-          <Alert className="bg-teal-50 dark:bg-teal-900/20 border-teal-200 dark:border-teal-700">
-            <Calendar className="h-4 w-4 text-teal-600" />
-            <AlertDescription className="text-teal-900 dark:text-teal-100">
-              {daysUntilNext === 0 ? (
-                <>
-                  <Zap className="inline h-4 w-4 mr-1" />
-                  Your free monthly tale is available now!
-                </>
-              ) : (
-                <>
-                  Next free tale in {daysUntilNext} day{daysUntilNext !== 1 ? "s" : ""}
-                </>
-              )}
-            </AlertDescription>
-          </Alert>
-        )}
-
         <div className="space-y-3 pt-4 border-t">
           {plan ? (
             <Button onClick={openBillingPortal} disabled={openingPortal} className="w-full" size="lg">
@@ -198,7 +170,7 @@ export function SubscriptionCard({ user }: { user: any }) {
           )}
 
           <div className="text-center">
-            <p className="text-xs text-muted-foreground">Get 1 free tale every month • Pack tales never expire</p>
+            <p className="text-xs text-muted-foreground">Plans from $4.99 a month • Cancel anytime</p>
           </div>
         </div>
 
@@ -206,7 +178,6 @@ export function SubscriptionCard({ user }: { user: any }) {
           <h4 className="font-semibold mb-2">QUICK FACTS:</h4>
           <ul className="space-y-1.5 text-muted-foreground">
             <li>• Your first tale is free</li>
-            <li>• Get 1 free tale every month</li>
             <li>• Plans from $4.99 a month</li>
             <li>• Plan tales reset monthly; pack tales never expire</li>
           </ul>

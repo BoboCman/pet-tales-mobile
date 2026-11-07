@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { getAppBaseUrl } from "@/lib/utils/app-url"
 import { getElevenLabsVoiceId, ALL_VOICES } from "@/lib/voice-personalities"
+import { internalAuthHeaders } from "@/lib/api/internal-auth"
+import { isInternalRequest } from "@/lib/api/internal-auth"
 
 export const maxDuration = 300
 
@@ -21,6 +23,9 @@ function getVoiceId(narrationStyle?: string): string {
 }
 
 export async function POST(request: NextRequest) {
+  if (!isInternalRequest(request)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
   const startTime = Date.now()
   console.log("🎤 =====================================")
   console.log("🎤 ELEVENLABS TTS GENERATION API")
@@ -193,7 +198,7 @@ console.log("🚀 Auto-triggering merged video creation after TTS completion..."
       
       const mergedVideoResponse = await fetch(`${getAppBaseUrl()}/api/cloudinary/merged-video`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...internalAuthHeaders() },
         body: JSON.stringify({ entryId }),
       })
       
@@ -381,7 +386,7 @@ console.log("🚀 Auto-triggering merged video creation after TTS completion..."
                 `${getAppBaseUrl()}/api/cloudinary/merged-video`,
                 {
                   method: "POST",
-                  headers: { "Content-Type": "application/json" },
+                  headers: { "Content-Type": "application/json", ...internalAuthHeaders() },
                   body: JSON.stringify({ entryId }),
                 },
               )
