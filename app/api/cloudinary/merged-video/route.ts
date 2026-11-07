@@ -589,80 +589,6 @@ async function uploadAudioWithCaptions(
 }
 
 /**
- * Poll for eager transformation completion
- * Cloudinary processes large videos asynchronously - we need to wait for completion
- */
-async function pollForEagerTransformation(
-  publicId: string,
-  maxWaitTime = 180000, // 3 minutes max
-  pollInterval = 3000, // Check every 3 seconds
-): Promise<{
-  success: boolean
-  url?: string
-  duration?: number
-  bytes?: number
-  error?: string
-}> {
-  const startTime = Date.now()
-  console.log(`⏳ Polling for eager transformation completion: ${publicId}`)
-  
-  while (Date.now() - startTime < maxWaitTime) {
-    try {
-      const resource = await cloudinary.api.resource(publicId, {
-        resource_type: "video",
-      })
-      
-      // Check if the resource exists and has been processed
-      if (resource && resource.secure_url) {
-        // Check if there are pending eager transformations
-        if (resource.eager && Array.isArray(resource.eager)) {
-          const pendingEager = resource.eager.find((e: any) => e.status === "pending")
-          if (pendingEager) {
-            console.log(`  ⏳ Eager transformation still pending... (${Math.round((Date.now() - startTime) / 1000)}s)`)
-            await new Promise((resolve) => setTimeout(resolve, pollInterval))
-            continue
-          }
-          
-          // Check for failed eager transformations
-          const failedEager = resource.eager.find((e: any) => e.status === "failed")
-          if (failedEager) {
-            return {
-              success: false,
-              error: `Eager transformation failed: ${failedEager.error?.message || "Unknown error"}`,
-            }
-          }
-        }
-        
-        console.log(`✅ Resource ready: ${publicId}`)
-        return {
-          success: true,
-          // With eager_async the stored asset is the untransformed source; the rendered video is
-          // the eager derivative.
-          url: resource.eager?.[0]?.secure_url || resource.secure_url,
-          duration: resource.duration,
-          bytes: resource.bytes,
-        }
-      }
-    } catch (error: any) {
-      // Resource not found yet, keep polling
-      if (error.http_code === 404) {
-        console.log(`  ⏳ Resource not ready yet... (${Math.round((Date.now() - startTime) / 1000)}s)`)
-        await new Promise((resolve) => setTimeout(resolve, pollInterval))
-        continue
-      }
-      throw error
-    }
-    
-    await new Promise((resolve) => setTimeout(resolve, pollInterval))
-  }
-  
-  return {
-    success: false,
-    error: `Transformation timed out after ${maxWaitTime / 1000} seconds`,
-  }
-}
-
-/**
  * Upload video with eager async transformation for large files
  * Falls back to synchronous upload for smaller files
  */
@@ -731,32 +657,93 @@ async function uploadWithEagerAsync(
           format: "mp4",
           type: "upload",
           timeout: 300000,
-          eager: transformation,
+          // One chained derivative. A bare array here would be read as one eager job PER
+          // component (just the loop, just the overlay, ...), and eager[0] would not be the tale.
+          eager: [{ transformation, format: "mp4" }],
           eager_async: true,
           eager_notification_url: undefined, // We'll poll instead
         }),
       `${operationName} (Async Upload)`,
     )
     
-    console.log(`📤 ${operationName}: Async upload initiated, polling for completion...`)
-    console.log(`  - Public ID: ${asyncResult.public_id}`)
-    
-    // Poll for the eager transformation to complete
-    const pollResult = await pollForEagerTransformation(publicId, 180000, 3000)
-    
-    if (!pollResult.success) {
-      throw new Error(pollResult.error || "Async transformation failed")
+    // The rendered video is the eager derivative, not the stored asset (which is the plain,
+    // untransformed copy). Wait for that derivative itself.
+    const eagerUrl: string | undefined = asyncResult.eager?.[0]?.secure_url
+    if (!eagerUrl) throw new Error("Cloudinary did not return a URL for the async render")
+    console.log(`📤 ${operationName}: Async render started, waiting for:`, eagerUrl.substring(0, 140))
+
+    const ready = await waitForDerivedVideo(publicId, eagerUrl, 200000, 4000)
+    if (!ready.success) {
+      throw new Error(ready.error || "Async transformation failed")
     }
-    
+
     console.log(`✅ ${operationName}: Async transformation completed`)
     return {
       success: true,
       public_id: publicId,
-      secure_url: pollResult.url,
-      duration: pollResult.duration,
-      bytes: pollResult.bytes,
+      secure_url: eagerUrl,
+      // Unknown until rendered; callers skip their length checks when this is undefined
+      duration: undefined,
+      bytes: ready.bytes,
     }
   }
+}
+
+/** Path after /upload/ without the version, so two URLs for the same derivative compare equal. */
+function derivedKey(url: string): string {
+  const afterUpload = url.split("/upload/")[1] || url
+  return afterUpload.replace(/(^|\/)v\d+\//, "$1").split("?")[0]
+}
+
+/**
+ * Wait until an eager_async derivative has actually been rendered.
+ *
+ * The old poll looked for resource.eager, which the Admin API never returns, so it reported
+ * "done" at once and handed back the untransformed copy (full length, original sound). The
+ * length check then rejected it and the merge fell back to a path that fails for large videos.
+ * Now: ready when the Admin API lists the derivative, or when the URL itself serves a video.
+ */
+async function waitForDerivedVideo(
+  publicId: string,
+  eagerUrl: string,
+  maxWaitTime = 200000,
+  pollInterval = 4000,
+): Promise<{ success: boolean; bytes?: number; error?: string }> {
+  const startTime = Date.now()
+  const wanted = derivedKey(eagerUrl)
+
+  while (Date.now() - startTime < maxWaitTime) {
+    await new Promise((resolve) => setTimeout(resolve, pollInterval))
+    const waited = Math.round((Date.now() - startTime) / 1000)
+
+    try {
+      const resource: any = await cloudinary.api.resource(publicId, { resource_type: "video" })
+      const derived = Array.isArray(resource?.derived) ? resource.derived : []
+      const match = derived.find((d: any) => d?.secure_url && derivedKey(d.secure_url) === wanted)
+      if (match) {
+        console.log(`  ✅ Derivative listed after ${waited}s`)
+        return { success: true, bytes: match.bytes }
+      }
+    } catch (error) {
+      console.warn("  ⚠️ resource() poll failed:", describeError(error, "unknown"))
+    }
+
+    try {
+      // Cache-busting query so a "still processing" answer is never served from the CDN cache
+      const head = await fetch(`${eagerUrl}${eagerUrl.includes("?") ? "&" : "?"}_poll=${Date.now()}`, { method: "HEAD" })
+      const type = head.headers.get("content-type") || ""
+      if (head.ok && type.startsWith("video")) {
+        console.log(`  ✅ Derivative is being served after ${waited}s`)
+        const length = Number(head.headers.get("content-length"))
+        return { success: true, bytes: Number.isFinite(length) ? length : undefined }
+      }
+      console.log(`  ⏳ Still rendering (${waited}s, HTTP ${head.status})`)
+    } catch {
+      console.log(`  ⏳ Still rendering (${waited}s)`)
+    }
+  }
+
+  return { success: false, error: `Render did not finish within ${Math.round(maxWaitTime / 1000)} seconds` }
 }
 
 /**
