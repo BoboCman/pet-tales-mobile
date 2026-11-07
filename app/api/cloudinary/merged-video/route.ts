@@ -1287,7 +1287,7 @@ export async function POST(request: NextRequest) {
     const { data: entry, error: fetchError } = await supabaseAdmin
       .from("diary_entries")
       .select(
-        "id, optimized_video_url, voiceover_url, cloudinary_public_id, pet_name, title, tts_status, merged_video_status, merged_processing_started_at",
+        "id, optimized_video_url, voiceover_url, cloudinary_public_id, pet_name, title, tts_status, compression_status, merged_video_status, merged_processing_started_at",
       )
       .eq("id", entryId)
       .single()
@@ -1312,6 +1312,17 @@ export async function POST(request: NextRequest) {
       if (!entry.voiceover_url) missing.push("audio")
       if (!entry.cloudinary_public_id) missing.push("cloudinary_id")
       return NextResponse.json({ error: `Missing required data: ${missing.join(", ")}` }, { status: 400 })
+    }
+
+    // Don't start before the 720p copy exists. Rendering from a copy that is still being made makes
+    // Cloudinary process the full original on the fly, which fails for large uploads ("too large
+    // to process synchronously"). The compression webhook triggers the merge once it is ready.
+    if (entry.compression_status === "processing" || entry.compression_status === "pending") {
+      console.log("⏸️ 720p copy still rendering; the compression webhook will start the merge")
+      return NextResponse.json(
+        { skipped: true, entryId, reason: "Waiting for compression to finish" },
+        { status: 409 },
+      )
     }
 
     // Claim the job. Several routes (TTS, compression webhook, Cloudinary webhook, caption retry,

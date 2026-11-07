@@ -145,7 +145,9 @@ async function getHandler(request: NextRequest, context: RouteContext) {
           thumbnailUrl: video.thumbnail_url,
           narrationStyle: video.narration_style || "unknown",
           narrationGenre: video.narration_genre || "unknown",
-          status: video.status || "unknown",
+          status: video.merged_video_status || video.status || "unknown",
+          mergeError: video.merged_video_error || null,
+          compressionStatus: video.compression_status || null,
         },
         pet: {
           id: pet?.id || video.pet_id,

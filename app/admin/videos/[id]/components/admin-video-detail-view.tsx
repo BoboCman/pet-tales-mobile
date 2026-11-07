@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
-import { RefreshCw, Video, Eye, Heart, User, Globe, Lock, Trash2, AlertCircle } from "lucide-react"
+import { RefreshCw, Video, Eye, Heart, User, Globe, Lock, Trash2, AlertCircle, RotateCcw, Loader2 } from "lucide-react"
 import Link from "next/link"
 import {
   AlertDialog,
@@ -34,6 +34,8 @@ interface VideoDetailData {
     narrationStyle: string
     narrationGenre: string
     status: string
+    mergeError: string | null
+    compressionStatus: string | null
   }
   pet: {
     id: string
@@ -131,6 +133,29 @@ export default function AdminVideoDetailView({ videoId }: AdminVideoDetailViewPr
       })
     } finally {
       setActionLoading(false)
+    }
+  }
+
+  const [retrying, setRetrying] = useState(false)
+  const retryMerge = async () => {
+    try {
+      setRetrying(true)
+      const response = await fetch(`/api/admin/videos/${videoId}/retry-merge`, {
+        method: "POST",
+        credentials: "include",
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.error || "Retry failed")
+      toast({ title: "Tale finished", description: "The video is ready and the owner has been emailed." })
+      fetchVideoDetail()
+    } catch (error) {
+      toast({
+        title: "Couldn't finish the tale",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setRetrying(false)
     }
   }
 
@@ -239,6 +264,29 @@ export default function AdminVideoDetailView({ videoId }: AdminVideoDetailViewPr
           </AlertDialogContent>
         </AlertDialog>
       </div>
+
+      {data.video.status !== "completed" && data.video.status !== "processing" && (
+        <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20">
+          <CardContent className="pt-6 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+            <div className="space-y-1">
+              <div className="font-medium flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                This tale didn&apos;t finish
+              </div>
+              {data.video.mergeError && (
+                <p className="text-xs text-gray-600 break-words max-w-2xl">{data.video.mergeError}</p>
+              )}
+              <p className="text-xs text-gray-500">
+                Retrying re-runs the last step (narration and captions). The owner isn&apos;t charged again.
+              </p>
+            </div>
+            <Button onClick={retryMerge} disabled={retrying || actionLoading} className="shrink-0">
+              {retrying ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-2" />}
+              {retrying ? "Finishing… (up to 3 min)" : "Retry tale"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Video Player */}
       <Card>

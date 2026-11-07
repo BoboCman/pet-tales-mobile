@@ -1,6 +1,7 @@
 export const runtime = "nodejs"
 
 import { type NextRequest, NextResponse } from "next/server"
+import { readyEagerUrl } from "@/lib/cloudinary-eager"
 import { v2 as cloudinary } from "cloudinary"
 import { getAppBaseUrl } from "@/lib/utils/app-url"
 import { supabaseAdmin } from "@/lib/supabase/admin"
@@ -78,6 +79,7 @@ interface WebhookPayload {
     format?: string
     url?: string
     secure_url?: string
+    status?: string
   }>
   batch_id?: string
 }
@@ -415,6 +417,14 @@ async function handleCompressionCompletion(payload: WebhookPayload, entryId: str
   try {
     // For eager_async webhooks the transformed URL lives inside payload.eager[0].secure_url,
     // not at the top-level payload.secure_url. Fall back through all available sources.
+    // An eager_async upload's first ("upload") notification lists the eager URL before the
+    // 720p copy has been rendered. Marking compression done then started the merge too early and
+    // large videos failed with "too large to process synchronously". Wait for the real one.
+    if (payload.eager?.length && !readyEagerUrl(payload)) {
+      console.log("  - 720p copy still rendering; waiting for the eager notification")
+      return { success: true, message: "Compression still rendering" }
+    }
+
     const optimizedUrl =
       payload.eager?.[0]?.secure_url ||
       payload.secure_url ||
@@ -464,7 +474,8 @@ async function handleCompressionCompletion(payload: WebhookPayload, entryId: str
     // Check if we should trigger merged video creation
     if (
       ((entry.tts_status === "completed" && entry.voiceover_url) || entry.tts_status === "processing") && // Allow processing TTS since it will trigger later
-      (!entry.merged_video_status || entry.merged_video_status === "pending")
+      // "failed" too: a merge that failed before the 720p copy existed gets one retry now
+      (!entry.merged_video_status || entry.merged_video_status === "pending" || entry.merged_video_status === "failed")
     ) {
       if (entry.tts_status === "completed" && entry.voiceover_url) {
         console.log("🚀 Auto-triggering merged video creation after compression completion...")

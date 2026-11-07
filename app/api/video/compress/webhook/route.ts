@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 import { getAppBaseUrl } from "@/lib/utils/app-url"
 import { internalAuthHeaders } from "@/lib/api/internal-auth"
+import { readyEagerUrl } from "@/lib/cloudinary-eager"
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -16,7 +17,7 @@ type CompressionNotification = {
   notification_type?: string
   public_id?: string
   error?: unknown
-  eager?: Array<{ secure_url?: string; url?: string; format?: string; bytes?: number }>
+  eager?: Array<{ secure_url?: string; url?: string; format?: string; bytes?: number; status?: string }>
 }
 
 // Cloudinary signs notifications with sha1 or sha256 depending on the account's signature algorithm
@@ -90,7 +91,9 @@ export async function POST(request: NextRequest) {
     },
   })
 
-  const compressedUrl = payload.eager?.[0]?.secure_url
+  // The "upload" notification already lists the eager URL while it is still rendering, so only
+  // the "eager" notification (or a finished status) counts. See lib/cloudinary-eager.ts.
+  const compressedUrl = readyEagerUrl(payload)
 
   if (!compressedUrl) {
     // Cloudinary also sends a notification for the raw upload itself; the entry keeps
@@ -142,13 +145,15 @@ export async function POST(request: NextRequest) {
   console.log("Compress webhook: saved compressed URL for entry", entry.id)
 
   // The compress route used to trigger the merge right after compression; now that compression
-  // finishes here, keep the same trigger conditions.
+  // finishes here, keep the same trigger conditions. A merge that already failed is retried too:
+  // it most likely started before this 720p copy existed (see lib/cloudinary-eager.ts).
   if (
     entry.tts_status === "completed" &&
     entry.voiceover_url &&
     (!entry.merged_video_status ||
       entry.merged_video_status === "pending" ||
-      entry.merged_video_status === "not_requested")
+      entry.merged_video_status === "not_requested" ||
+      entry.merged_video_status === "failed")
   ) {
     try {
       const mergeResponse = await fetch(`${getAppBaseUrl()}/api/cloudinary/merged-video`, {
