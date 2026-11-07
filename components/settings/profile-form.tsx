@@ -63,12 +63,15 @@ export function ProfileForm({ user }: ProfileFormProps) {
       }
 
       // Also update the users table
-      const { error: dbError } = await supabase.from("users").upsert({
-        id: user.id,
-        username: data.username,
-        full_name: data.full_name,
-        updated_at: new Date().toISOString(),
-      })
+      // update (not upsert): the row always exists, and users may only update their own row
+      const { error: dbError } = await supabase
+        .from("users")
+        .update({
+          username: data.username,
+          full_name: data.full_name,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", user.id)
 
       if (dbError) {
         console.error("Error updating user profile in database:", dbError)
@@ -140,7 +143,7 @@ export function ProfileForm({ user }: ProfileFormProps) {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Email</label>
                 <p className="text-base font-medium">{user?.email || "Not available"}</p>
-                <p className="text-xs text-muted-foreground">This is your login email and cannot be changed here.</p>
+                <p className="text-xs text-muted-foreground">This is your login email. To change it, use the Account tab.</p>
               </div>
 
               <div className="flex justify-end pt-4">

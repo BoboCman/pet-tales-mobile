@@ -20,11 +20,11 @@ export const dynamic = "force-dynamic"
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: { tab?: string; session_id?: string; success?: string }
+  searchParams: { tab?: string; session_id?: string }
 }) {
   const user = await getUserDetails()
 
-  // Default to 'billing' tab if coming from successful checkout, otherwise 'profile'
+  // Open the requested tab (the billing portal returns to ?tab=billing), otherwise profile
   const activeTab = searchParams.tab || (searchParams.session_id ? "billing" : "profile")
 
   return (
@@ -49,21 +49,21 @@ export default async function SettingsPage({
             className="flex items-center justify-center gap-2 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-800"
           >
             <User className="h-4 w-4" />
-            <span className="hidden sm:inline">Profile</span>
+            <span>Profile</span>
           </TabsTrigger>
           <TabsTrigger
             value="account"
             className="flex items-center justify-center gap-2 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-800"
           >
             <Shield className="h-4 w-4" />
-            <span className="hidden sm:inline">Account</span>
+            <span>Account</span>
           </TabsTrigger>
           <TabsTrigger
             value="billing"
             className="flex items-center justify-center gap-2 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-800"
           >
             <CreditCard className="h-4 w-4" />
-            <span className="hidden sm:inline">Billing</span>
+            <span>Billing</span>
           </TabsTrigger>
         </TabsList>
 
@@ -90,12 +90,16 @@ export default async function SettingsPage({
                   <h4 className="font-medium">Current Email</h4>
                   <p className="text-sm text-muted-foreground break-all">{user?.email || "No email set"}</p>
                 </div>
-                <Button variant="outline" size="sm" className="w-full sm:w-auto sm:min-w-[120px] bg-transparent">
-                  Change Email
+                <Button asChild variant="outline" size="sm" className="w-full sm:w-auto sm:min-w-[120px] bg-transparent">
+                  <a
+                    href={`mailto:pettaleai@gmail.com?subject=${encodeURIComponent("Change my login email")}&body=${encodeURIComponent(`Hi Pet Tale AI team,\n\nPlease change my login email.\n\nCurrent email: ${user?.email ?? ""}\nNew email: \n\nThank you!`)}`}
+                  >
+                    Change Email
+                  </a>
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground mt-4 leading-relaxed">
-                Note: Changing your email requires verification.
+                Email us from your current address and we&apos;ll move your account, plan and tales to the new one.
               </p>
             </CardContent>
           </Card>

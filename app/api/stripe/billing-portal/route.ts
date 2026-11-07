@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     const origin = request.headers.get("origin") || getAppBaseUrl("http://localhost:3000")
     const session = await stripe.billingPortal.sessions.create({
       customer: userData.stripe_customer_id,
-      return_url: `${origin}/dashboard/settings`,
+      return_url: `${origin}/dashboard/settings?tab=billing`,
     })
 
     return NextResponse.json({ url: session.url })
