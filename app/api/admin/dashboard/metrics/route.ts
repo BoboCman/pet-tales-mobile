@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/api/auth-middleware"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { logAdminAction } from "@/lib/api/audit-logger"
+import { getPlanById } from "@/lib/pricing-config"
 
 async function handler(request: Request, context: any) {
   try {
@@ -53,36 +54,33 @@ async function handler(request: Request, context: any) {
       .select("*", { count: "exact", head: true })
       .gte("created_at", weekAgo.toISOString())
 
-    // Get credit statistics
-    // Get total credits distributed (sum of all positive transactions)
-    const { data: creditTransactions } = await supabaseAdmin
-      .from("credit_transactions")
-      .select("amount")
-      .gt("amount", 0)
+    // Subscribers (from the users table, which the Stripe webhook keeps in sync). Money lives in Stripe.
+    const { data: subscribers } = await supabaseAdmin
+      .from("users")
+      .select("subscription_tier, subscription_status, subscription_cancel_at_period_end")
+      .in("subscription_status", ["active", "trialing", "past_due"])
+    const byPlan: Record<string, number> = {}
+    let estimatedMrr = 0
+    let pastDue = 0
+    let cancelling = 0
+    for (const sub of subscribers ?? []) {
+      const plan = getPlanById(sub.subscription_tier ?? "")
+      byPlan[plan?.name ?? "Unknown"] = (byPlan[plan?.name ?? "Unknown"] ?? 0) + 1
+      if (sub.subscription_status === "past_due") pastDue++
+      else if (plan) estimatedMrr += plan.monthlyPrice
+      if (sub.subscription_cancel_at_period_end) cancelling++
+    }
 
-    const totalCreditsDistributed = creditTransactions?.reduce((sum, tx) => sum + tx.amount, 0) || 0
+    // Tales still unused across all accounts (head-less sum; fine at this scale)
+    const { data: balances } = await supabaseAdmin.from("users").select("free_credits, purchased_credits")
+    const talesRemaining =
+      balances?.reduce((sum, user) => sum + (user.free_credits || 0) + (user.purchased_credits || 0), 0) || 0
 
-    // Get total credits used (sum of all negative transactions)
-    const { data: usedTransactions } = await supabaseAdmin.from("credit_transactions").select("amount").lt("amount", 0)
-
-    const totalCreditsUsed = Math.abs(usedTransactions?.reduce((sum, tx) => sum + tx.amount, 0) || 0)
-
-    // Get current total credits remaining (sum of all user balances)
-    const { data: users } = await supabaseAdmin.from("users").select("free_credits, purchased_credits")
-
-    const totalCreditsRemaining =
-      users?.reduce((sum, user) => sum + (user.free_credits || 0) + (user.purchased_credits || 0), 0) || 0
-
-    // Get engagement metrics
-    const { data: viewLogs } = await supabaseAdmin.from("view_logs").select("id", { count: "exact", head: true })
-
-    const { count: totalViews } = viewLogs || { count: 0 }
-
-    const { data: likeLogs } = await supabaseAdmin
+    // Engagement (head: true returns only the count)
+    const { count: totalViews } = await supabaseAdmin.from("view_logs").select("id", { count: "exact", head: true })
+    const { count: totalLikes } = await supabaseAdmin
       .from("diary_entry_likes")
       .select("id", { count: "exact", head: true })
-
-    const { count: totalLikes } = likeLogs || { count: 0 }
 
     // Calculate average views per video
     const avgViewsPerVideo = totalVideos ? Math.round((totalViews || 0) / totalVideos) : 0
@@ -106,10 +104,15 @@ async function handler(request: Request, context: any) {
           createdToday: videosToday || 0,
           createdThisWeek: videosThisWeek || 0,
         },
-        credits: {
-          distributed: totalCreditsDistributed,
-          used: totalCreditsUsed,
-          remaining: totalCreditsRemaining,
+        subscriptions: {
+          total: subscribers?.length || 0,
+          byPlan,
+          pastDue,
+          cancelling,
+          estimatedMrr: Math.round(estimatedMrr * 100) / 100,
+        },
+        tales: {
+          remaining: talesRemaining,
         },
         engagement: {
           totalViews: totalViews || 0,

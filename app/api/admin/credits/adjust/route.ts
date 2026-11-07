@@ -40,7 +40,7 @@ const handler = requireAdmin(async (request: Request, context: AdminContext) => 
     const { data: user, error: userError } = await supabase
       .from("users")
       .select("id, email, free_credits, purchased_credits")
-      .eq("email", userEmail)
+      .ilike("email", String(userEmail).trim())
       .single()
 
     if (userError || !user) {
@@ -50,7 +50,9 @@ const handler = requireAdmin(async (request: Request, context: AdminContext) => 
     const previousBalance = user.free_credits + user.purchased_credits
 
     // Calculate new balance
+    // Added tales go to purchased_credits: they never expire and survive the monthly plan reset
     let newPurchasedCredits = user.purchased_credits
+    let newFreeCredits = user.free_credits
     let adjustmentAmount = 0
 
     if (adjustmentType === "add") {
@@ -67,17 +69,22 @@ const handler = requireAdmin(async (request: Request, context: AdminContext) => 
           { status: 400 },
         )
       }
-      newPurchasedCredits = Math.max(0, newPurchasedCredits - amount)
+      // Take from pack/gift tales first, then free/plan tales, so the full amount is removed
+      const fromPurchased = Math.min(user.purchased_credits, amount)
+      newPurchasedCredits = user.purchased_credits - fromPurchased
+      newFreeCredits = user.free_credits - (amount - fromPurchased)
       adjustmentAmount = -amount
     } else if (adjustmentType === "set") {
-      newPurchasedCredits = amount
-      adjustmentAmount = amount - user.purchased_credits
+      // "Set" means the total balance becomes `amount`, as the admin form previews it
+      newFreeCredits = Math.min(user.free_credits, amount)
+      newPurchasedCredits = amount - newFreeCredits
+      adjustmentAmount = amount - previousBalance
     }
 
     // Update user credits
     const { error: updateError } = await supabase
       .from("users")
-      .update({ purchased_credits: newPurchasedCredits })
+      .update({ purchased_credits: newPurchasedCredits, free_credits: newFreeCredits })
       .eq("id", user.id)
 
     if (updateError) {
