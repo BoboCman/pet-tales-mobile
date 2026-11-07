@@ -137,7 +137,7 @@ export default function AdminVideoDetailView({ videoId }: AdminVideoDetailViewPr
   }
 
   const [retrying, setRetrying] = useState(false)
-  const retryMerge = async () => {
+  const retryMerge = async (rebuild = false) => {
     try {
       setRetrying(true)
       const response = await fetch(`/api/admin/videos/${videoId}/retry-merge`, {
@@ -145,11 +145,18 @@ export default function AdminVideoDetailView({ videoId }: AdminVideoDetailViewPr
         // Admin POST routes reject requests without a JSON content type
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: "{}",
+        body: JSON.stringify({ rebuild }),
       })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.error || "Retry failed")
-      toast({ title: "Tale finished", description: "The video is ready and the owner has been emailed." })
+      if (result.rebuilding) {
+        toast({
+          title: "Redoing the tale",
+          description: "It starts again from the original video and takes about 3 to 5 minutes. Refresh to check.",
+        })
+      } else {
+        toast({ title: "Tale finished", description: "The video is ready and the owner has been emailed." })
+      }
       fetchVideoDetail()
     } catch (error) {
       toast({
@@ -243,6 +250,31 @@ export default function AdminVideoDetailView({ videoId }: AdminVideoDetailViewPr
           </Button>
         </div>
 
+        <div className="flex gap-2">
+        {data.video.status === "completed" && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" disabled={retrying || actionLoading}>
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Redo tale
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Redo this tale?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Use this when the finished video came out wrong, for example cut short. It is rebuilt from the
+                  original upload with the same story and narration, and replaces the current video in about 3 to 5
+                  minutes. The owner isn&apos;t charged.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => retryMerge(true)}>Redo tale</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="destructive" size="sm" disabled={actionLoading}>
@@ -266,6 +298,7 @@ export default function AdminVideoDetailView({ videoId }: AdminVideoDetailViewPr
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        </div>
       </div>
 
       {data.video.status !== "completed" && data.video.status !== "processing" && (
@@ -283,7 +316,7 @@ export default function AdminVideoDetailView({ videoId }: AdminVideoDetailViewPr
                 Retrying re-runs the last step (narration and captions). The owner isn&apos;t charged again.
               </p>
             </div>
-            <Button onClick={retryMerge} disabled={retrying || actionLoading} className="shrink-0">
+            <Button onClick={() => retryMerge()} disabled={retrying || actionLoading} className="shrink-0">
               {retrying ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-2" />}
               {retrying ? "Finishing… (up to 3 min)" : "Retry tale"}
             </Button>
