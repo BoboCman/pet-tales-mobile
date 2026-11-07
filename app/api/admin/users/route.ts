@@ -27,7 +27,11 @@ async function handler(request: Request, context: any) {
         full_name,
         is_admin,
         created_at,
-        updated_at
+        updated_at,
+        free_credits,
+        purchased_credits,
+        subscription_tier,
+        subscription_status
       `,
       { count: "exact" },
     )
@@ -89,9 +93,16 @@ async function handler(request: Request, context: any) {
         full_name: user.full_name,
         role: user.is_admin ? "admin" : "user",
         created_at: user.created_at,
-        last_sign_in_at: user.updated_at, // Using updated_at as proxy for last_sign_in_at
+        last_sign_in_at: user.updated_at, // profile last updated (not true last sign-in)
         pets_count: petCountMap.get(user.id) || 0,
         videos_count: videoCountMap.get(user.id) || 0,
+        tales_left: (user.free_credits || 0) + (user.purchased_credits || 0),
+        plan:
+          ["active", "trialing", "past_due"].includes(user.subscription_status ?? "") &&
+          user.subscription_tier &&
+          user.subscription_tier !== "free"
+            ? `${user.subscription_tier.replace("_", " ")}${user.subscription_status === "past_due" ? " (past due)" : ""}`
+            : null,
       })) || []
 
     const totalPages = Math.ceil((count || 0) / limit)

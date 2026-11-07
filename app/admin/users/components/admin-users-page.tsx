@@ -15,6 +15,8 @@ import Link from "next/link"
 interface User {
   id: string
   email: string
+  tales_left?: number
+  plan?: string | null
   full_name: string | null
   role: string
   created_at: string
@@ -216,10 +218,10 @@ export default function AdminUsersPage() {
                   <TableRow>
                     <TableHead>User</TableHead>
                     <TableHead>Role</TableHead>
-                    <TableHead>Pets</TableHead>
+                    <TableHead>Plan</TableHead>
+                    <TableHead>Tales left</TableHead>
                     <TableHead>Videos</TableHead>
                     <TableHead>Joined</TableHead>
-                    <TableHead>Last Sign In</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -235,12 +237,10 @@ export default function AdminUsersPage() {
                       <TableCell>
                         <Badge variant={getRoleBadgeVariant(user.role)}>{user.role}</Badge>
                       </TableCell>
-                      <TableCell>{user.pets_count}</TableCell>
+                      <TableCell className="capitalize">{user.plan || "Free"}</TableCell>
+                      <TableCell>{user.tales_left ?? 0}</TableCell>
                       <TableCell>{user.videos_count}</TableCell>
                       <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        {user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleDateString() : "Never"}
-                      </TableCell>
                       <TableCell className="text-right">
                         <Button variant="outline" size="sm" onClick={() => router.push(`/admin/users/${user.id}`)}>
                           View Details

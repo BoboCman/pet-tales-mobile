@@ -18,9 +18,14 @@ interface DashboardMetrics {
     createdToday: number
     createdThisWeek: number
   }
-  credits: {
-    distributed: number
-    used: number
+  subscriptions: {
+    total: number
+    byPlan: Record<string, number>
+    pastDue: number
+    cancelling: number
+    estimatedMrr: number
+  }
+  tales: {
     remaining: number
   }
   engagement: {
@@ -149,17 +154,25 @@ export default function DashboardMetrics() {
           </CardContent>
         </Card>
 
-        {/* Credits */}
+        {/* Subscribers (revenue details live in the Stripe dashboard) */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Credits</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">Subscribers</CardTitle>
             <CreditCard className="h-4 w-4 text-gray-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{metrics.credits.remaining}</div>
+            <div className="text-3xl font-bold">{metrics.subscriptions.total}</div>
             <p className="text-xs text-gray-500 mt-2">
-              {metrics.credits.distributed} distributed, {metrics.credits.used} used
+              {Object.entries(metrics.subscriptions.byPlan)
+                .map(([name, n]) => `${n} ${name}`)
+                .join(", ") || "None yet"}
             </p>
+            <p className="text-xs text-gray-500">
+              ~${metrics.subscriptions.estimatedMrr.toFixed(2)}/mo before fees
+              {metrics.subscriptions.pastDue > 0 ? ` · ${metrics.subscriptions.pastDue} past due` : ""}
+              {metrics.subscriptions.cancelling > 0 ? ` · ${metrics.subscriptions.cancelling} cancelling` : ""}
+            </p>
+            <p className="text-xs text-gray-500">{metrics.tales.remaining} tales unused across all accounts</p>
           </CardContent>
         </Card>
 

@@ -239,14 +239,28 @@ export default function UserDetailView({ userId, adminEmail }: UserDetailViewPro
 
   const totalPages = Math.ceil(filteredTransactions.length / transactionsPerPage)
 
-  const getTransactionBadge = (type: string) => {
+  const getTransactionBadge = (type: string, metadata?: any) => {
+    // Several kinds of rows share a type; metadata says which one it is
+    if (type === "grant" && metadata?.subscription) {
+      return <Badge className="bg-teal-100 text-teal-700">Plan renewal</Badge>
+    }
+    if (type === "adjustment" && metadata?.reason === "stripe_refund") {
+      return <Badge className="bg-red-100 text-red-700">Stripe refund</Badge>
+    }
+    if (type === "adjustment" && metadata?.reason === "stripe_dispute") {
+      return <Badge className="bg-red-100 text-red-700">Chargeback</Badge>
+    }
+    if (type === "adjustment" && metadata?.reason === "legacy_credit_cleanup_2026_11_07") {
+      return <Badge className="bg-gray-100 text-gray-700">Legacy cleanup</Badge>
+    }
     const badges: Record<string, { label: string; className: string }> = {
       welcome: { label: "Signup tale", className: "bg-green-100 text-green-700" },
-      weekly: { label: "Weekly Free (legacy)", className: "bg-gray-100 text-gray-700" },
-      purchase: { label: "Purchase", className: "bg-blue-100 text-blue-700" },
+      weekly: { label: "Weekly free (legacy)", className: "bg-gray-100 text-gray-700" },
+      purchase: { label: "Pack purchase", className: "bg-blue-100 text-blue-700" },
       deduction: { label: "Used", className: "bg-red-100 text-red-700" },
-      grant: { label: "Admin Grant", className: "bg-teal-100 text-teal-700" },
-      adjustment: { label: "Admin Adjustment", className: "bg-orange-100 text-orange-700" },
+      refund: { label: "Tale returned", className: "bg-green-100 text-green-700" },
+      grant: { label: "Admin grant", className: "bg-teal-100 text-teal-700" },
+      adjustment: { label: "Admin adjustment", className: "bg-orange-100 text-orange-700" },
     }
     const badge = badges[type] || { label: type, className: "bg-gray-100 text-gray-700" }
     return <Badge className={badge.className}>{badge.label}</Badge>
@@ -330,16 +344,34 @@ export default function UserDetailView({ userId, adminEmail }: UserDetailViewPro
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <CreditCard className="h-5 w-5 text-teal-600" />
-              Credit Balance
+              Tales
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <div className="text-sm text-gray-500">Total Credits</div>
+              <div className="text-sm text-gray-500">Tales left</div>
               <div className="text-4xl font-bold text-teal-600">{data.credits.total}</div>
             </div>
             <div className="text-sm text-gray-600">
-              Free: {data.credits.free} • Purchased: {data.credits.purchased}
+              Free/plan: {data.credits.free} • Packs/gifts: {data.credits.purchased}
+            </div>
+            <div className="text-sm">
+              <span className="text-gray-500">Plan: </span>
+              <span className="font-medium">
+                {data.subscription.status && data.subscription.tier && data.subscription.tier !== "free"
+                  ? `${data.subscription.tier.replace("_", " ")} (${data.subscription.status})`
+                  : "None"}
+              </span>
+              {data.subscription.customerId && (
+                <a
+                  href={`https://dashboard.stripe.com/customers/${data.subscription.customerId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-2 text-teal-600 underline underline-offset-4"
+                >
+                  Open in Stripe
+                </a>
+              )}
             </div>
             <div className="space-y-2">
               <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -589,10 +621,11 @@ export default function UserDetailView({ userId, adminEmail }: UserDetailViewPro
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
                   <SelectItem value="welcome">Signup tale</SelectItem>
-                  <SelectItem value="purchase">Purchase</SelectItem>
+                  <SelectItem value="purchase">Pack purchase</SelectItem>
                   <SelectItem value="deduction">Used</SelectItem>
-                  <SelectItem value="grant">Admin Grant</SelectItem>
-                  <SelectItem value="adjustment">Admin Adjustment</SelectItem>
+                  <SelectItem value="grant">Grants and renewals</SelectItem>
+                  <SelectItem value="adjustment">Adjustments and refunds</SelectItem>
+                  <SelectItem value="refund">Tale returned</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -624,7 +657,7 @@ export default function UserDetailView({ userId, adminEmail }: UserDetailViewPro
                             minute: "2-digit",
                           })}
                         </TableCell>
-                        <TableCell>{getTransactionBadge(tx.transaction_type)}</TableCell>
+                        <TableCell>{getTransactionBadge(tx.transaction_type, tx.metadata)}</TableCell>
                         <TableCell className="text-right">
                           <span
                             className={tx.amount > 0 ? "text-green-600 font-semibold" : "text-red-600 font-semibold"}

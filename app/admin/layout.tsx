@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { LogOut, Shield } from "lucide-react"
+import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 
 export default function AdminLayout({
@@ -91,10 +92,27 @@ export default function AdminLayout({
                 <Shield className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold">Pet Tales Admin</h1>
+                <h1 className="text-xl font-bold">Pet Tale AI Admin</h1>
                 <p className="text-xs text-gray-500">Logged in as {userEmail}</p>
               </div>
             </div>
+            <nav className="hidden md:flex items-center gap-4 text-sm">
+              <Link href="/admin/dashboard" className={pathname?.startsWith("/admin/dashboard") ? "font-semibold text-teal-700" : "text-gray-600 hover:text-gray-900"}>
+                Dashboard
+              </Link>
+              <Link href="/admin/users" className={pathname?.startsWith("/admin/users") ? "font-semibold text-teal-700" : "text-gray-600 hover:text-gray-900"}>
+                Users
+              </Link>
+              <Link href="/admin/videos" className={pathname?.startsWith("/admin/videos") ? "font-semibold text-teal-700" : "text-gray-600 hover:text-gray-900"}>
+                Videos
+              </Link>
+              <Link href="/admin/captions" className={pathname?.startsWith("/admin/captions") ? "font-semibold text-teal-700" : "text-gray-600 hover:text-gray-900"}>
+                Captions
+              </Link>
+              <a href="https://dashboard.stripe.com" target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-gray-900">
+                Stripe ↗
+              </a>
+            </nav>
             <Button variant="outline" size="sm" className="gap-2 bg-transparent" onClick={handleLogout}>
               <LogOut className="w-4 h-4" />
               Logout
