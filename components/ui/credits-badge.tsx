@@ -45,7 +45,7 @@ export function CreditsBadge({ className, refreshInterval, showIcon = true }: Cr
     return (
       <Badge variant="secondary" className={cn("animate-pulse", className)} aria-live="polite">
         {showIcon && <Coins className="w-3 h-3 mr-1" />}
-        Credits: ...
+        Tales: ...
       </Badge>
     )
   }
@@ -55,11 +55,11 @@ export function CreditsBadge({ className, refreshInterval, showIcon = true }: Cr
       <Badge
         variant="outline"
         className={cn("text-muted-foreground", className)}
-        title="Couldn't load credits"
+        title="Couldn't load your tales"
         aria-live="polite"
       >
         {showIcon && <Coins className="w-3 h-3 mr-1" />}
-        Credits: —
+        Tales: —
       </Badge>
     )
   }
@@ -81,7 +81,7 @@ export function CreditsBadge({ className, refreshInterval, showIcon = true }: Cr
       >
         {showIcon && <Coins className="h-3.5 w-3.5" />}
         <span className="font-semibold">{balance}</span>
-        <span className="text-xs font-normal">credits</span>
+        <span className="text-xs font-normal">{balance === 1 ? "tale" : "tales"}</span>
       </Badge>
     </Link>
   )

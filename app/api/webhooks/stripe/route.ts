@@ -3,11 +3,12 @@ import { stripe } from "@/lib/stripe"
 import { addPurchasedCredits } from "@/lib/credits/operations-admin"
 import { getPackById } from "@/lib/stripe/pack-config"
 import { grantPlanTalesForInvoice, syncSubscription } from "@/lib/credits/subscriptions"
+import { handleChargeRefunded, handleDisputeCreated } from "@/lib/credits/refunds"
 
 /**
- * STRIPE WEBHOOK HANDLER FOR CREDIT PACK PURCHASES
+ * STRIPE WEBHOOK HANDLER
  *
- * Processes checkout.session.completed events when users purchase credit packs.
+ * Plans (checkout, invoice.paid, subscription updates), pack purchases, refunds and chargebacks.
  * Includes signature verification, idempotency protection, and comprehensive logging.
  *
  * Security: ALWAYS verifies webhook signature to prevent fake webhook attacks
@@ -99,6 +100,19 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 })
       }
       return NextResponse.json({ received: true, subscription_synced: true })
+    }
+
+    // Refunds and chargebacks take the paid tales back
+    if (event.type === "charge.refunded" || event.type === "charge.dispute.created") {
+      const result =
+        event.type === "charge.refunded"
+          ? await handleChargeRefunded(eventObject)
+          : await handleDisputeCreated(eventObject)
+      if (result.error) {
+        console.error("[Webhook] ❌ Failed to reverse tales:", result.error)
+        return NextResponse.json({ error: result.error.message }, { status: 500 })
+      }
+      return NextResponse.json({ received: true, ...result, error: undefined })
     }
 
     // STEP 4b: Everything else except pack checkouts is ignored
@@ -234,6 +248,8 @@ export async function GET() {
       "invoice.paid",
       "customer.subscription.updated",
       "customer.subscription.deleted",
+      "charge.refunded",
+      "charge.dispute.created",
     ],
     required_metadata: ["userId", "pack_id", "pack_credits"],
     required_env_vars: ["STRIPE_WEBHOOK_SECRET"],

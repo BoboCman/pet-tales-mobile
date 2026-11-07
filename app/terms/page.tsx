@@ -35,7 +35,7 @@ export default function TermsPage() {
       <div className="container max-w-4xl mx-auto py-12 px-4">
         <div className="bg-white dark:bg-gray-950 rounded-lg shadow-sm border p-8 md:p-12">
           <h1 className="text-4xl font-bold mb-4">Terms of Service</h1>
-          <p className="text-muted-foreground mb-8">Effective Date: November 6, 2026</p>
+          <p className="text-muted-foreground mb-8">Effective Date: November 7, 2026</p>
 
           <div className="prose prose-gray dark:prose-invert max-w-none space-y-8">
             {/* Introduction */}
@@ -384,9 +384,9 @@ export default function TermsPage() {
 
               <h3 className="text-lg font-medium mt-4 mb-2">8.1 Credit System</h3>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                Pet Tale AI operates on a credit-based system. Each credit entitles you to create one AI-narrated Pet
-                Tale, including voice narration, synchronized captions, and a shareable link. Credits are
-                non-transferable between accounts and have no cash value.
+                Pet Tale AI operates on a credit-based system. In the app, credits are shown as &quot;tales.&quot; Each
+                credit entitles you to create one AI-narrated Pet Tale, including voice narration, synchronized
+                captions, and a shareable link. Credits are non-transferable between accounts and have no cash value.
               </p>
 
               <h3 className="text-lg font-medium mt-4 mb-2">8.2 Free Credits</h3>
@@ -413,8 +413,13 @@ export default function TermsPage() {
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed mt-4">
                 <strong>Cancellation:</strong> You can cancel at any time from your account settings (Manage plan).
                 Cancellation takes effect at the end of the current billing period; you keep your plan credits until
-                then and will not be charged again. We will notify you before any price change takes effect, and you
-                may cancel before the new price applies.
+                then and will not be charged again. When the plan ends, any unused plan credits are removed. We will
+                notify you before any price change takes effect, and you may cancel before the new price applies.
+              </p>
+              <p className="text-gray-700 dark:text-gray-300 leading-relaxed mt-4">
+                <strong>Failed payments:</strong> If a renewal payment fails, our payment processor will retry it and
+                you can update your payment method from Manage plan. No new plan credits are added until the payment
+                succeeds. If the payment is not resolved, the plan ends and unused plan credits are removed.
               </p>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed mt-4">
                 Where offered, one-time credit packs are digital goods priced as shown at checkout. Pricing is subject
@@ -446,8 +451,10 @@ export default function TermsPage() {
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed mt-4">
                 <strong>Technical Failures:</strong> If a credit is consumed but the Service fails to generate your Pet
                 Tale due to a technical error on our part (not due to user error, unsupported file format, or content
-                violations), we will either: (a) restore the credit to your account, or (b) provide a refund for that
-                credit upon request. You must report such failures within seven (7) days of occurrence.
+                violations), we will restore the credit to your account. If processing cannot start, the credit is
+                restored automatically. Otherwise, please report the failure to pettaleai@gmail.com within seven (7)
+                days. Restoring the credit is our sole remedy for technical failures, except where the law requires
+                otherwise.
               </p>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed mt-4">
                 <strong>Duplicate Charges:</strong> If you are charged multiple times for the same transaction in error,
@@ -456,12 +463,29 @@ export default function TermsPage() {
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed mt-4">
                 <strong>Dissatisfaction with AI Output:</strong> Because AI-generated content is subjective and results
                 may vary, we do not offer refunds or credit restoration for dissatisfaction with the creative output,
-                voice selection, or caption quality. We encourage you to use free credits to explore different voices
-                and vibes before purchasing.
+                voice selection, or caption quality. We encourage you to use your free credit to try the Service before
+                purchasing.
               </p>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed mt-4">
                 <strong>Discretionary Refunds:</strong> We may, at our sole discretion, offer refunds, credits, or other
                 accommodations in exceptional circumstances on a case-by-case basis.
+              </p>
+              <p className="text-gray-700 dark:text-gray-300 leading-relaxed mt-4">
+                <strong>Effect of Refunds and Chargebacks:</strong> If a payment is refunded, or reversed through a
+                chargeback or payment dispute, the unused credits from that payment are removed from your account.
+                Credits already used are not affected. For a refunded monthly plan payment, the remaining plan credits
+                for that billing period are removed. We may suspend accounts with repeated or unfounded chargebacks.
+              </p>
+              <p className="text-gray-700 dark:text-gray-300 leading-relaxed mt-4">
+                <strong>Consumers in the EU, UK and similar jurisdictions:</strong> You may have a statutory right to
+                withdraw from a purchase of digital content within 14 days. By purchasing credits, you ask us to supply
+                them immediately, and you acknowledge that you lose the right to withdraw once you use a purchased
+                credit. You may still withdraw from a purchase within 14 days if you have not used any of the credits
+                from it.
+              </p>
+              <p className="text-gray-700 dark:text-gray-300 leading-relaxed mt-4">
+                <strong>How to Request a Refund:</strong> Email pettaleai@gmail.com from your account email with the
+                date of the charge. Approved refunds are returned to your original payment method.
               </p>
 
               <h3 className="text-lg font-medium mt-4 mb-2">8.7 Taxes</h3>

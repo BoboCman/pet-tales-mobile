@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { stripe } from "@/lib/stripe"
+import { getOrCreateStripeCustomer } from "@/lib/stripe/customer"
 import { createClient } from "@/lib/supabase/server"
-import { supabaseAdmin } from "@/lib/supabase/admin"
 import { formatStripeError } from "@/lib/stripe-errors"
 import { getPackById } from "@/lib/stripe/pack-config"
 import { isStripeTestMode, TEST_CARD_INFO } from "@/lib/stripe/test-mode"
@@ -82,35 +82,8 @@ export async function POST(request: Request) {
       )
     }
 
-    // 5. Create or retrieve Stripe customer
-    let customerId = userData.stripe_customer_id
-
-    if (!customerId) {
-      // Create new Stripe customer
-      const customer = await stripe.customers.create({
-        email: userData.email,
-        name: userData.full_name || userData.name || userData.email?.split("@")[0],
-        metadata: {
-          userId: userData.id,
-        },
-      })
-
-      customerId = customer.id
-
-      console.log("[Pack Checkout] Created Stripe customer:", customerId)
-
-      // Save customer ID to database
-      // Service role: billing columns are locked against user-session writes
-      const { error: updateError } = await supabaseAdmin
-        .from("users")
-        .update({ stripe_customer_id: customerId })
-        .eq("id", userData.id)
-
-      if (updateError) {
-        console.error("[Pack Checkout] Error saving Stripe customer ID:", updateError)
-        // Continue anyway - customer is created in Stripe
-      }
-    }
+    // 5. Create or retrieve Stripe customer (replaces IDs left over from the old Stripe account)
+    const customerId = await getOrCreateStripeCustomer(userData, "[Pack Checkout]")
 
     // 6. Get origin for redirect URLs
     const origin = request.headers.get("origin") || getAppBaseUrl("http://localhost:3000")

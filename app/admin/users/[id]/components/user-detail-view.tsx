@@ -241,8 +241,8 @@ export default function UserDetailView({ userId, adminEmail }: UserDetailViewPro
 
   const getTransactionBadge = (type: string) => {
     const badges: Record<string, { label: string; className: string }> = {
-      welcome: { label: "Welcome Bonus", className: "bg-green-100 text-green-700" },
-      weekly: { label: "Weekly Free", className: "bg-green-100 text-green-700" },
+      welcome: { label: "Signup tale", className: "bg-green-100 text-green-700" },
+      weekly: { label: "Weekly Free (legacy)", className: "bg-gray-100 text-gray-700" },
       purchase: { label: "Purchase", className: "bg-blue-100 text-blue-700" },
       deduction: { label: "Used", className: "bg-red-100 text-red-700" },
       grant: { label: "Admin Grant", className: "bg-teal-100 text-teal-700" },
@@ -588,8 +588,7 @@ export default function UserDetailView({ userId, adminEmail }: UserDetailViewPro
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="welcome">Welcome Bonus</SelectItem>
-                  <SelectItem value="weekly">Weekly Free</SelectItem>
+                  <SelectItem value="welcome">Signup tale</SelectItem>
                   <SelectItem value="purchase">Purchase</SelectItem>
                   <SelectItem value="deduction">Used</SelectItem>
                   <SelectItem value="grant">Admin Grant</SelectItem>

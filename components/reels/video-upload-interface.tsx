@@ -146,14 +146,6 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
     }
   }
 
-  const handleRefreshCredits = async () => {
-    const result = await checkCreditBalance()
-    if (result.ok) {
-      setIsOutOfCredits(false)
-      router.refresh()
-    }
-  }
-
   useEffect(() => {
     checkCreditBalance()
   }, [])
@@ -279,8 +271,8 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
         if (balanceCheck.code === "OUT_OF_CREDITS") {
           setShowOutOfCreditsModal(true)
           toast({
-            title: "You're out of credits.",
-            description: CREDIT_MESSAGES.OUT_OF_CREDITS,
+            title: CREDIT_MESSAGES.OUT_OF_CREDITS,
+            description: "Pick a plan to keep creating.",
             variant: "destructive",
           })
           setCreditBalance(balanceCheck.balance)
@@ -296,7 +288,7 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
         } else {
           toast({
             title: "Error",
-            description: balanceCheck.message || "Unable to verify credits",
+            description: balanceCheck.message || "Unable to check your tales. Please try again.",
             variant: "destructive",
           })
           return
@@ -421,13 +413,17 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
       clientLogger.success("DataUpload", "Video upload and processing initiated successfully")
 
       // Since credit deduction happens async via webhook, we calculate: if they have 2 now, they'll have 1 after
-      if (balanceCheck.balance === 2) {
+      if (balanceCheck.balance === 1 || balanceCheck.balance === 2) {
+        const left = balanceCheck.balance - 1
         toast({
-          title: "⚠️ Last credit after this!",
-          description: "You'll have 1 credit left. Upgrade to keep creating amazing Pet Tales.",
+          title: left === 0 ? "That was your last tale" : "1 tale left",
+          description:
+            left === 0
+              ? "Pick a plan to keep creating Pet Tales."
+              : "You have 1 tale left after this one. Pick a plan to keep creating.",
           action: (
             <Button asChild variant="outline" size="sm">
-              <Link href="/pricing">Upgrade</Link>
+              <Link href="/pricing">See plans</Link>
             </Button>
           ),
           duration: 8000,
@@ -485,7 +481,7 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
       case "preparing":
         return "Preparing upload..."
       case "checking_credits":
-        return "Checking credit balance..."
+        return "Checking your tales..."
       case "checking_rate_limit": // Added rate limit step description
         return "Checking upload limits..."
       case "authenticating":
@@ -656,8 +652,6 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
         <OutOfCreditsModal
           isOpen={showOutOfCreditsModal}
           onClose={() => setShowOutOfCreditsModal(false)}
-          currentTier="free"
-          resetDate={null}
           balance={creditBalance || 0}
         />
 
@@ -796,12 +790,7 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
             </section>
 
             {isOutOfCredits && (
-              <OutOfCreditsBanner
-                balance={creditBalance || 0}
-                onClaimDaily={undefined}
-                isClaimingDaily={false}
-                onRefreshCredits={handleRefreshCredits}
-              />
+              <OutOfCreditsBanner balance={creditBalance || 0} />
             )}
 
             <div className="sticky bottom-[100px] md:bottom-4 lg:static z-10 pt-1 bg-gray-50/90 backdrop-blur rounded-xl">
@@ -815,7 +804,7 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
               </Button>
               {creditBalance !== null && (
                 <p className="text-xs text-center text-gray-500 mt-2">
-                  Uses 1 credit · You have {creditBalance}
+                  Uses 1 tale · You have {creditBalance} left
                 </p>
               )}
             </div>
@@ -832,18 +821,11 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
       <OutOfCreditsModal
         isOpen={showOutOfCreditsModal}
         onClose={() => setShowOutOfCreditsModal(false)}
-        currentTier="free"
-        resetDate={null}
         balance={creditBalance || 0}
       />
 
       {isOutOfCredits && (
-        <OutOfCreditsBanner
-          balance={creditBalance || 0}
-          onClaimDaily={undefined}
-          isClaimingDaily={false}
-          onRefreshCredits={handleRefreshCredits}
-        />
+        <OutOfCreditsBanner balance={creditBalance || 0} />
       )}
 
       <button

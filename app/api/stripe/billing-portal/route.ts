@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { stripe } from "@/lib/stripe"
+import { customerExists } from "@/lib/stripe/customer"
 import { createClient } from "@/lib/supabase/server"
 import { formatStripeError } from "@/lib/stripe-errors"
 import { getAppBaseUrl } from "@/lib/utils/app-url"
@@ -23,7 +24,8 @@ export async function POST(request: Request) {
 
     const { data: userData } = await supabase.from("users").select("stripe_customer_id").eq("id", user.id).single()
 
-    if (!userData?.stripe_customer_id) {
+    // A customer ID from the old Stripe account can't open this account's portal
+    if (!userData?.stripe_customer_id || !(await customerExists(userData.stripe_customer_id))) {
       return NextResponse.json(
         { error: "No billing account", message: "You don't have a plan to manage yet." },
         { status: 404 },

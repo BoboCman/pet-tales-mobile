@@ -104,7 +104,8 @@ export async function syncSubscription(
       .update({
         stripe_subscription_id: subscription.id,
         stripe_price_id: priceId,
-        subscription_tier: active && plan ? plan.id : "free",
+        // past_due keeps the plan (Stripe is retrying the card); it ends at canceled/unpaid
+        subscription_tier: active || status === "past_due" ? plan.id : "free",
         subscription_status: status,
         subscription_period_end: periodEndIso(subscription),
         subscription_cancel_at_period_end: !!subscription?.cancel_at_period_end,

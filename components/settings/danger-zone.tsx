@@ -5,15 +5,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast"
 import { AlertTriangle } from "lucide-react"
 import { RequestDataButton } from "./request-data-button"
+import { createClient } from "@/lib/supabase/client"
+import { SEO_CONFIG } from "@/lib/constants/seo"
 
 export function DangerZone() {
   const { toast } = useToast()
 
-  const handleDeleteAccount = () => {
-    // TODO: Implement delete account with confirmation modal
+  // Deletion is handled by a person (we cancel any plan and remove the account), so open an email
+  const handleDeleteAccount = async () => {
+    const {
+      data: { user },
+    } = await createClient().auth.getUser()
+    const email = user?.email ?? ""
+    const subject = encodeURIComponent("Delete my account")
+    const body = encodeURIComponent(
+      `Hi Pet Tale AI team,\n\nPlease delete my account and cancel any plan.\n\nAccount email: ${email}\n\nThank you!`,
+    )
+    window.location.href = `mailto:${SEO_CONFIG.contactEmail}?subject=${subject}&body=${body}`
     toast({
-      title: "Delete account",
-      description: "This feature will be available soon. Please contact support to delete your account.",
+      title: "Opening your email app",
+      description: "Send the email and we'll confirm once your account is deleted.",
+      duration: 6000,
     })
   }
 
@@ -33,7 +45,7 @@ export function DangerZone() {
           <div className="flex-1">
             <h4 className="font-medium text-red-900 dark:text-red-100">Delete Account</h4>
             <p className="text-sm text-red-700 dark:text-red-300 mt-1 leading-relaxed">
-              Permanently delete your account and all data
+              Email us to permanently delete your account and cancel any plan. Shared tale links stay up unless you ask us to remove them.
             </p>
           </div>
           <Button

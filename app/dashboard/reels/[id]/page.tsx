@@ -854,7 +854,7 @@ export default function ReelDetailPage() {
         await navigator.clipboard.writeText(normalizedUrl)
         toast({
           title: "Link copied!",
-          description: "The Pet Tales AI video link has been copied to your clipboard",
+          description: "The video link has been copied to your clipboard",
         })
       } else {
         toast({

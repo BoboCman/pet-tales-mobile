@@ -34,7 +34,7 @@ export default function PrivacyPage() {
       <div className="container max-w-4xl mx-auto py-12 px-4">
         <div className="bg-white dark:bg-gray-950 rounded-lg shadow-sm border p-8 md:p-12">
           <h1 className="text-4xl font-bold mb-4">Privacy Policy</h1>
-          <p className="text-muted-foreground mb-8">Effective Date: December 6, 2025</p>
+          <p className="text-muted-foreground mb-8">Effective Date: November 7, 2026</p>
 
           <div className="prose prose-gray dark:prose-invert max-w-none space-y-8">
             {/* Introduction */}
@@ -97,9 +97,11 @@ export default function PrivacyPage() {
 
               <h3 className="text-lg font-medium mt-4 mb-2">1.3 Information from Third Parties</h3>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                <strong>Payment Processor:</strong> When you make a purchase, our third-party payment processor provides
-                us with limited transaction information including transaction ID, amount paid, date and time, and
-                partial payment method details. We do not receive or store your complete credit card number.
+                <strong>Payment Processor:</strong> Payments are processed by Stripe. When you subscribe or make a
+                purchase, Stripe provides us with limited information including a customer ID, your plan and
+                subscription status, renewal dates, transaction ID, amount paid, date and time, refunds or disputes,
+                and partial payment method details. We do not receive or store your complete card number. Stripe
+                handles your payment details under its own privacy policy.
               </p>
 
               <h3 className="text-lg font-medium mt-4 mb-2">1.4 Information About Third Parties in Your Videos</h3>

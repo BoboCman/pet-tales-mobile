@@ -21,6 +21,7 @@ export function SubscriptionCard({ user }: { user: any }) {
   const [credits, setCredits] = useState<CreditData | null>(null)
   const [loading, setLoading] = useState(true)
   const [planId, setPlanId] = useState<string | null>(null)
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null)
   const [openingPortal, setOpeningPortal] = useState(false)
   const searchParams = useSearchParams()
   const { toast } = useToast()
@@ -48,13 +49,16 @@ export function SubscriptionCard({ user }: { user: any }) {
           .select("subscription_tier, subscription_status")
           .eq("id", user.id)
           .single()
-        const isSubscribed = subData?.subscription_status === "active" || subData?.subscription_status === "trialing"
-        setPlanId(isSubscribed && subData?.subscription_tier ? subData.subscription_tier : null)
+        // past_due still has a Stripe subscription: they need the portal to fix their card
+        const status = subData?.subscription_status ?? null
+        const hasPlan = status === "active" || status === "trialing" || status === "past_due"
+        setSubscriptionStatus(status)
+        setPlanId(hasPlan && subData?.subscription_tier && subData.subscription_tier !== "free" ? subData.subscription_tier : null)
 
         if (packPurchase === "success" && sessionId) {
           toast({
-            title: "Credits added successfully!",
-            description: `Your credits have been added to your account. You now have ${(data.free_credits || 0) + (data.purchased_credits || 0)} total credits.`,
+            title: "Tales added!",
+            description: `Your tales have been added. You now have ${(data.free_credits || 0) + (data.purchased_credits || 0)} tales.`,
             duration: 8000,
           })
 
@@ -64,8 +68,8 @@ export function SubscriptionCard({ user }: { user: any }) {
       } catch (error) {
         console.error("[Settings] Error fetching credits:", error)
         toast({
-          title: "Error loading credits",
-          description: "Failed to load your credit details. Please refresh the page.",
+          title: "Couldn't load your tales",
+          description: "Please refresh the page.",
           variant: "destructive",
         })
       } finally {
@@ -82,9 +86,9 @@ export function SubscriptionCard({ user }: { user: any }) {
         <CardHeader>
           <div className="flex items-center gap-2">
             <span className="text-xl">💰</span>
-            <CardTitle>Your Credits</CardTitle>
+            <CardTitle>Your Tales</CardTitle>
           </div>
-          <CardDescription>Available for creating tales</CardDescription>
+          <CardDescription>Each Pet Tale uses 1 tale</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Skeleton className="h-32 w-full" />
@@ -121,15 +125,15 @@ export function SubscriptionCard({ user }: { user: any }) {
       <CardHeader>
         <div className="flex items-center gap-2">
           <span className="text-xl">💰</span>
-          <CardTitle>Your Credits</CardTitle>
+          <CardTitle>Your Tales</CardTitle>
         </div>
-        <CardDescription>Available for creating tales</CardDescription>
+        <CardDescription>Each Pet Tale uses 1 tale</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="bg-gradient-to-br from-teal-50 to-emerald-50 dark:from-teal-900/20 dark:to-emerald-900/20 rounded-xl p-6 border-2 border-teal-200 dark:border-teal-700">
           <div className="flex items-baseline gap-3 mb-4">
             <span className="text-5xl font-bold text-teal-600">{totalCredits}</span>
-            <span className="text-muted-foreground text-lg">total credits</span>
+            <span className="text-muted-foreground text-lg">{totalCredits === 1 ? "tale" : "tales"} left</span>
           </div>
 
           {/* Credit Breakdown */}
@@ -144,6 +148,14 @@ export function SubscriptionCard({ user }: { user: any }) {
             </div>
           </div>
         </div>
+
+        {plan && subscriptionStatus === "past_due" && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              Your last payment didn&apos;t go through. Update your card in Manage plan to keep your {plan.name} tales.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {plan && (
           <Alert className="bg-teal-50 dark:bg-teal-900/20 border-teal-200 dark:border-teal-700">

@@ -272,7 +272,7 @@ export function PublicTaleViewer({ tale }: PublicTaleViewerProps) {
       if (navigator.share) {
         await navigator.share({
           title: tale.title || "Check out this Pet Tale!",
-          text: `Watch ${petName}'s tale on Pet Tales AI`,
+          text: `Watch ${petName}'s tale on Pet Tale AI`,
           url: taleUrl,
         })
       }
@@ -438,7 +438,7 @@ export function PublicTaleViewer({ tale }: PublicTaleViewerProps) {
             </div>
 
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Loved this tale?</h2>
-            <p className="text-gray-600 mb-6">Create your own AI-powered pet stories with Pet Tales AI</p>
+            <p className="text-gray-600 mb-6">Create your own AI-powered pet stories with Pet Tale AI</p>
 
             <Button
               onClick={handleGoToSignup}
@@ -467,9 +467,9 @@ export function PublicTaleViewer({ tale }: PublicTaleViewerProps) {
 
             <div className="border-t pt-4 mt-4">
               <p className="text-xs text-gray-500 mb-1">
-                Powered by <span className="font-semibold text-teal-600">Pet Tales AI</span>
+                Powered by <span className="font-semibold text-teal-600">Pet Tale AI</span>
               </p>
-              <p className="text-xs text-gray-400">© 2025 Pet Tales AI. All rights reserved.</p>
+              <p className="text-xs text-gray-400">© {new Date().getFullYear()} Glendale AI, LLC. All rights reserved.</p>
             </div>
           </div>
         </div>
