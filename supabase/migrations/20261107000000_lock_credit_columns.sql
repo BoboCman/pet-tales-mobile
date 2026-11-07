@@ -11,6 +11,38 @@
 ALTER TABLE public.users ALTER COLUMN free_credits SET DEFAULT 1;
 ALTER TABLE public.users ALTER COLUMN purchased_credits SET DEFAULT 0;
 
+-- 1b) The signup trigger on auth.users inserted free_credits = 3 explicitly (so the column default
+--     never applied) and logged a 3-credit "welcome" row. Grant exactly 1.
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+BEGIN
+  INSERT INTO public.users (id, email, free_credits, welcome_credits_granted)
+  VALUES (NEW.id, NEW.email, 1, true)
+  ON CONFLICT (id) DO NOTHING;
+
+  -- Only log the welcome tale when this call actually created the row
+  IF FOUND THEN
+    INSERT INTO public.credit_transactions (user_id, amount, transaction_type, metadata)
+    VALUES (NEW.id, 1, 'welcome', '{"source": "signup_trigger"}'::jsonb);
+  END IF;
+
+  RETURN NEW;
+END;
+$function$;
+
+-- 1c) Stop the legacy monthly credit reset (pg_cron job "SELECT reset_monthly_credits()", runs on
+--     the 1st of each month). There are no automatic free tales any more.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'cron') THEN
+    PERFORM cron.unschedule(jobid) FROM cron.job WHERE command ILIKE '%reset_monthly_credits%';
+  END IF;
+END $$;
+
 -- 2) Ignore client writes to protected columns. Requests made with the anon key run as the
 --    "anon" or "authenticated" role; the server's service-role key, SQL editor and triggers do not.
 CREATE OR REPLACE FUNCTION public.protect_user_billing_columns()
@@ -76,10 +108,25 @@ DROP POLICY IF EXISTS credit_transactions_select_own ON public.credit_transactio
 CREATE POLICY credit_transactions_select_own ON public.credit_transactions
   FOR SELECT USING (auth.uid() = user_id);
 
--- 4) deduct_credit_atomic takes any user id, so the browser must not be able to call it
---    (anyone could drain another user's tales). The app calls it with the service role.
-REVOKE EXECUTE ON FUNCTION public.deduct_credit_atomic(uuid) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.deduct_credit_atomic(uuid) TO service_role;
+-- 4) Credit functions must not be callable from the browser. In production anon/authenticated
+--    could execute grant_credits, reset_monthly_credits, admin_reset_user_credits,
+--    debit_credits_for_entry and deduct_credit_atomic (the last takes any user id, so anyone
+--    could drain another user's tales). Revoke every overload; the app uses the service role.
+DO $$
+DECLARE
+  fn record;
+BEGIN
+  FOR fn IN
+    SELECT p.oid::regprocedure AS sig
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname IN ('deduct_credit_atomic', 'grant_credits', 'reset_monthly_credits',
+                        'admin_reset_user_credits', 'debit_credits_for_entry')
+  LOOP
+    EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC, anon, authenticated', fn.sig);
+    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', fn.sig);
+  END LOOP;
+END $$;
 
 -- 5) Give a tale back when processing could not start (server only).
 CREATE OR REPLACE FUNCTION public.refund_credit_atomic(user_uuid uuid, bucket text)
