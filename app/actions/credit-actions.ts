@@ -23,70 +23,37 @@ export async function preflightBalanceCheck(): Promise<PreflightCheckResult> {
       }
     }
 
-    // Get user's credit balance using the RPC function
-    const { data: balance, error: balanceError } = await supabase.rpc("get_credit_balance")
+    // Balance = free/plan tales + pack tales
+    const { data: userData, error: userError } = await supabase
+      .from("users")
+      .select("free_credits, purchased_credits")
+      .eq("id", user.id)
+      .single()
 
-    if (balanceError) {
-      console.error("Preflight check: Error fetching balance", {
+    if (userError || !userData) {
+      console.error("Preflight check: Error fetching user data", {
         userId: user.id,
-        error: balanceError,
+        error: userError,
       })
-      // Fallback to direct query if RPC fails
-      const { data: userData, error: userError } = await supabase
-        .from("users")
-        .select("free_credits, purchased_credits")
-        .eq("id", user.id)
-        .single()
-
-      if (userError || !userData) {
-        console.error("Preflight check: Error fetching user data", {
-          userId: user.id,
-          error: userError,
-        })
-        return {
-          ok: false,
-          balance: 0,
-          code: "SERVER_ERROR",
-          message: CREDIT_MESSAGES.SERVER_ERROR,
-        }
-      }
-
-      const freeCredits = userData.free_credits ?? 0
-      const purchasedCredits = userData.purchased_credits ?? 0
-      const userBalance = freeCredits + purchasedCredits
-
-      // Log the preflight decision
-      console.log("Preflight check result (fallback path)", {
-        route: "preflight_create",
-        user_id: user.id,
-        free_credits: freeCredits,
-        purchased_credits: purchasedCredits,
-        total_balance: userBalance,
-        outcome: userBalance >= 1 ? "allowed" : "blocked",
-      })
-
-      if (userBalance < 1) {
-        return {
-          ok: false,
-          balance: userBalance,
-          code: "OUT_OF_CREDITS",
-          message: CREDIT_MESSAGES.OUT_OF_CREDITS,
-        }
-      }
-
       return {
-        ok: true,
-        balance: userBalance,
+        ok: false,
+        balance: 0,
+        code: "SERVER_ERROR",
+        message: CREDIT_MESSAGES.SERVER_ERROR,
       }
     }
 
-    const userBalance = balance ?? 0
+    const freeCredits = userData.free_credits ?? 0
+    const purchasedCredits = userData.purchased_credits ?? 0
+    const userBalance = freeCredits + purchasedCredits
 
     // Log the preflight decision
     console.log("Preflight check result", {
       route: "preflight_create",
       user_id: user.id,
-      balance: userBalance,
+      free_credits: freeCredits,
+      purchased_credits: purchasedCredits,
+      total_balance: userBalance,
       outcome: userBalance >= 1 ? "allowed" : "blocked",
     })
 
