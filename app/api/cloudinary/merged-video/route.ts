@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { sendTaleReadyEmail } from "@/lib/email/send"
 import { v2 as cloudinary } from "cloudinary"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import OpenAI from "openai"
@@ -1409,6 +1410,14 @@ export async function POST(request: NextRequest) {
       .eq("id", entryId)
 
     console.log("💾 Video immediately available with Cloudinary URL for user viewing")
+
+    // "Your tale is ready" email (once per tale; never fails the merge)
+    try {
+      const email = await sendTaleReadyEmail(entryId)
+      console.log("📧 Tale ready email:", email)
+    } catch (emailError) {
+      console.error("Tale ready email error (non-fatal):", emailError)
+    }
 
     // STEP 8: Transfer to Supabase Storage for Pet Tales AI branding
     console.log("🚀 Starting 8-step process with Supabase transfer...")

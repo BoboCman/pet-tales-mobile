@@ -28,6 +28,7 @@ import {
   Edit,
 } from "lucide-react"
 import Link from "next/link"
+import { GiftTalesCard } from "@/components/admin/gift-tales-card"
 
 interface UserDetailData {
   user: {
@@ -241,6 +242,9 @@ export default function UserDetailView({ userId, adminEmail }: UserDetailViewPro
 
   const getTransactionBadge = (type: string, metadata?: any) => {
     // Several kinds of rows share a type; metadata says which one it is
+    if (type === "grant" && metadata?.gift) {
+      return <Badge className="bg-teal-100 text-teal-700">Gift</Badge>
+    }
     if (type === "grant" && metadata?.subscription) {
       return <Badge className="bg-teal-100 text-teal-700">Plan renewal</Badge>
     }
@@ -460,11 +464,13 @@ export default function UserDetailView({ userId, adminEmail }: UserDetailViewPro
         </Card>
       </div>
 
+      <GiftTalesCard userId={data.user.id} email={data.user.email} onGifted={fetchUserDetail} />
+
       <Card className="border-teal-200 dark:border-teal-800">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Gift className="w-5 h-5 text-teal-600" />
-            Credit Management
+            Adjust tales (advanced)
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
