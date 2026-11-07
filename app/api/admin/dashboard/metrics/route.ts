@@ -54,8 +54,6 @@ async function handler(request: Request, context: any) {
       .gte("created_at", weekAgo.toISOString())
 
     // Get credit statistics
-    const { data: creditStats } = await supabaseAdmin.rpc("get_credit_statistics")
-
     // Get total credits distributed (sum of all positive transactions)
     const { data: creditTransactions } = await supabaseAdmin
       .from("credit_transactions")
