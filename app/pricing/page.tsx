@@ -11,14 +11,14 @@ export const dynamic = "force-dynamic"
 export const metadata: Metadata = {
   title: "Pricing",
   description:
-    "Pet Tale AI pricing - Your first tale is free, plus 1 free tale every month. Plans from $4.99 a month for 10 tales.",
+    "Pet Tale AI pricing - Your first tale is free. Plans from $4.99 a month for 10 tales.",
   alternates: {
     canonical: "https://www.pettaleai.com/pricing",
   },
   openGraph: {
     title: "Pricing | Pet Tale AI",
     description:
-      "Your first tale is free, plus 1 free tale every month. Plans from $4.99 a month.",
+      "Your first tale is free. Plans from $4.99 a month.",
   },
 }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { stripe } from "@/lib/stripe"
 import { createClient } from "@/lib/supabase/server"
+import { supabaseAdmin } from "@/lib/supabase/admin"
 import { formatStripeError } from "@/lib/stripe-errors"
 import { getPlanById, getPlanPriceId } from "@/lib/pricing-config"
 import type { CheckoutSessionRequest, CheckoutSessionResponse } from "@/types/stripe"
@@ -107,7 +108,8 @@ export async function POST(request: Request) {
       console.log("[Checkout] Created Stripe customer:", customerId)
 
       // Save customer ID to database
-      const { error: updateError } = await supabase
+      // Service role: billing columns are locked against user-session writes
+      const { error: updateError } = await supabaseAdmin
         .from("users")
         .update({ stripe_customer_id: customerId })
         .eq("id", userData.id)

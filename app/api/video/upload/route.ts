@@ -1,58 +1,16 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { deductCredit } from "@/lib/credits/operations-admin"
+import { deductCredit, refundCredit } from "@/lib/credits/operations-admin"
+import { checkRateLimit } from "@/lib/redis/rate-limiter"
 
-const uploadRateLimits = new Map<string, { count: number; resetTime: number }>()
+// Server-side upload limit, shared across serverless instances via Redis (Upstash).
+// Separate key from the client pre-check (video_upload, 3/hour) so one upload isn't counted twice.
 const MAX_UPLOADS_PER_HOUR = 20
-const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000 // 1 hour
-
-function checkUserRateLimit(userId: string): {
-  allowed: boolean
-  remaining: number
-  resetTime: number
-} {
-  const now = Date.now()
-  const key = `upload:${userId}`
-
-  // Clean up expired entries
-  for (const [k, record] of uploadRateLimits.entries()) {
-    if (now > record.resetTime) {
-      uploadRateLimits.delete(k)
-    }
-  }
-
-  const record = uploadRateLimits.get(key)
-
-  if (!record || now > record.resetTime) {
-    // First request or window expired
-    const resetTime = now + RATE_LIMIT_WINDOW_MS
-    uploadRateLimits.set(key, { count: 1, resetTime })
-    return {
-      allowed: true,
-      remaining: MAX_UPLOADS_PER_HOUR - 1,
-      resetTime,
-    }
-  }
-
-  if (record.count >= MAX_UPLOADS_PER_HOUR) {
-    // Rate limit exceeded
-    return {
-      allowed: false,
-      remaining: 0,
-      resetTime: record.resetTime,
-    }
-  }
-
-  // Increment count
-  record.count++
-  uploadRateLimits.set(key, record)
-
-  return {
-    allowed: true,
-    remaining: MAX_UPLOADS_PER_HOUR - record.count,
-    resetTime: record.resetTime,
-  }
+const UPLOAD_API_RATE_LIMIT = {
+  limit: MAX_UPLOADS_PER_HOUR,
+  windowMs: 60 * 60 * 1000,
+  keyPrefix: "video_upload_api",
 }
 
 export async function POST(request: NextRequest) {
@@ -74,8 +32,8 @@ export async function POST(request: NextRequest) {
 
     const userId = user.id
 
-    const rateLimitResult = checkUserRateLimit(userId)
-    if (!rateLimitResult.allowed) {
+    const rateLimitResult = await checkRateLimit(userId, UPLOAD_API_RATE_LIMIT)
+    if (!rateLimitResult.success) {
       const retryAfter = Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000)
       console.warn("⚠️ Rate limit exceeded for video upload:", {
         userId,
@@ -153,6 +111,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "You do not have permission to upload videos for this pet" }, { status: 403 })
     }
 
+    // Check processing is configured BEFORE taking a tale
+    const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL // NOT NEXT_PUBLIC!
+    if (!n8nWebhookUrl) {
+      console.error("❌ N8N_WEBHOOK_URL not configured")
+      return NextResponse.json({ error: "Video processing service unavailable" }, { status: 500 })
+    }
+
     // STEP 6: PREFLIGHT - Check user has sufficient credits
     const { data: userData, error: balanceError } = await supabase
       .from("users")
@@ -227,12 +192,6 @@ export async function POST(request: NextRequest) {
     const credits_remaining = newBalance
 
     // STEP 7: Trigger n8n workflow (securely from backend)
-    const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL // NOT NEXT_PUBLIC!
-
-    if (!n8nWebhookUrl) {
-      console.error("❌ N8N_WEBHOOK_URL not configured")
-      return NextResponse.json({ error: "Video processing service unavailable" }, { status: 500 })
-    }
 
     const n8nPayload = {
       video_url,
@@ -285,22 +244,36 @@ export async function POST(request: NextRequest) {
       videoUrl: video_url.substring(0, 50) + "...",
     })
 
-    const n8nResponse = await fetch(n8nWebhookUrl, {
+    let n8nResponse: Response | null = null
+    try {
+      n8nResponse = await fetch(n8nWebhookUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         // Optional: Add your own secret header for additional security
         "X-Internal-Secret": process.env.N8N_INTERNAL_SECRET || "",
       },
-      body: JSON.stringify(n8nPayload),
-    })
-
-    if (!n8nResponse.ok) {
-      console.error("❌ n8n workflow trigger failed:", {
-        status: n8nResponse.status,
-        statusText: n8nResponse.statusText,
+        body: JSON.stringify(n8nPayload),
       })
-      return NextResponse.json({ error: "Failed to start video processing" }, { status: 500 })
+    } catch (triggerError) {
+      console.error("❌ n8n workflow trigger threw:", triggerError)
+    }
+
+    if (!n8nResponse || !n8nResponse.ok) {
+      console.error("❌ n8n workflow trigger failed:", {
+        status: n8nResponse?.status,
+        statusText: n8nResponse?.statusText,
+      })
+      // Refund only when n8n clearly never received the job (unreachable, webhook missing, or down).
+      // Other errors may mean the workflow did start, and refunding those would hand out free tales.
+      const neverStarted = !n8nResponse || [404, 502, 503].includes(n8nResponse.status)
+      let refunded = false
+      if (neverStarted) {
+        const refund = await refundCredit(userId, deductResult.deductedFrom ?? "free", "processing_failed_to_start")
+        refunded = !refund.error
+        if (refund.error) console.error("❌ Refund after failed trigger also failed:", refund.error)
+      }
+      return NextResponse.json({ error: "Failed to start video processing", credit_refunded: refunded }, { status: 500 })
     }
 
     console.log("✅ n8n workflow triggered successfully")

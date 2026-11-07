@@ -391,10 +391,9 @@ export default function TermsPage() {
 
               <h3 className="text-lg font-medium mt-4 mb-2">8.2 Free Credits</h3>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                New users receive one (1) complimentary credit upon account creation. Users without a paid plan also
-                receive one (1) free credit every 30 days; free credits do not accumulate beyond one (1). Free credits
-                are subject to the same terms as purchased credits. We reserve the right to modify, suspend, or
-                discontinue the free credit program at any time.
+                New users receive one (1) complimentary credit upon account creation. No other free credits are
+                provided automatically. Free credits are subject to the same terms as purchased credits. We reserve the
+                right to modify, suspend, or discontinue the free credit program at any time.
               </p>
 
               <h3 className="text-lg font-medium mt-4 mb-2">8.3 Monthly Plans and Automatic Renewal</h3>

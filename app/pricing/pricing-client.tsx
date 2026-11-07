@@ -113,8 +113,7 @@ export default function PricingClient({ packs, availablePlanIds }: PricingClient
           </h1>
 
           <p className="text-base md:text-lg text-gray-700 max-w-2xl mx-auto font-medium">
-            Start free with {FREE_TIER.welcomeTales} tale and get {FREE_TIER.monthlyTales} more free every month. Pick a
-            plan when you want more.
+            Your first tale is on us. Pick a plan when you want more.
           </p>
         </div>
 
@@ -131,13 +130,12 @@ export default function PricingClient({ packs, availablePlanIds }: PricingClient
             <CardContent className="flex-1 text-center space-y-6">
               <div>
                 <div className="text-5xl font-bold">$0</div>
-                <div className="text-sm text-muted-foreground mt-1">forever</div>
+                <div className="text-sm text-muted-foreground mt-1">to try it</div>
               </div>
               <ul className="space-y-3 text-left">
                 <PlanFeature>
                   {FREE_TIER.welcomeTales} tale when you sign up
                 </PlanFeature>
-                <PlanFeature>{FREE_TIER.monthlyTales} free tale every month</PlanFeature>
                 <PlanFeature>All narrator voices and vibes</PlanFeature>
               </ul>
             </CardContent>

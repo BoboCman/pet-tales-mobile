@@ -24,12 +24,9 @@ export interface SubscriptionPlan {
   popular?: boolean
 }
 
-/** Free tier: tales at signup, then one a month (never stacks above this). */
+/** Free tier: one tale at signup, then subscribe. No recurring free tales. */
 export const FREE_TIER = {
   welcomeTales: 1,
-  monthlyTales: 1,
-  /** Days between free monthly tales */
-  monthlyIntervalDays: 30,
 } as const
 
 export const subscriptionPlans: SubscriptionPlan[] = [

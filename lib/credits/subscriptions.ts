@@ -8,6 +8,8 @@ import { getPlanByPriceId } from "@/lib/pricing-config"
  * Plan tales live in users.free_credits, which deductCredit() spends before purchased_credits.
  * Each paid invoice RESETS free_credits to the plan's monthly tales (no rollover), so pack
  * tales (purchased_credits) are kept and used only after the plan's tales run out.
+ * When the subscription ends (canceled/unpaid), free_credits is set to 0. There is no free
+ * monthly tale for non-subscribers.
  */
 
 function getAdminClient() {
@@ -22,6 +24,8 @@ function getAdminClient() {
 }
 
 const ACTIVE_STATUSES = new Set(["active", "trialing"])
+/** The subscription is over: Stripe won't charge again */
+const ENDED_STATUSES = new Set(["canceled", "unpaid"])
 
 export function isActiveSubscriptionStatus(status: string | null | undefined): boolean {
   return !!status && ACTIVE_STATUSES.has(status)
@@ -77,6 +81,24 @@ export async function syncSubscription(
     const active = isActiveSubscriptionStatus(status)
 
     const supabase = getAdminClient()
+
+    // An event for an older subscription must not overwrite a newer active one
+    const { data: current } = await supabase
+      .from("users")
+      .select("stripe_subscription_id, subscription_status")
+      .eq("id", userId)
+      .maybeSingle()
+    if (
+      current?.stripe_subscription_id &&
+      current.stripe_subscription_id !== subscription.id &&
+      isActiveSubscriptionStatus(current.subscription_status)
+    ) {
+      return { userId, ignored: `stale event for old subscription ${subscription.id}`, error: null }
+    }
+
+    // When the plan has ended, unused plan tales go away (they are a monthly allowance).
+    const ended = ENDED_STATUSES.has(status)
+
     const { error } = await supabase
       .from("users")
       .update({
@@ -86,6 +108,7 @@ export async function syncSubscription(
         subscription_status: status,
         subscription_period_end: periodEndIso(subscription),
         subscription_cancel_at_period_end: !!subscription?.cancel_at_period_end,
+        ...(ended ? { free_credits: 0 } : {}),
       })
       .eq("id", userId)
 

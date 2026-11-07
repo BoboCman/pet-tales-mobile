@@ -1,14 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
-import { FREE_TIER } from "@/lib/pricing-config"
 
-// Export all interfaces from operations-server for type consistency
-export type {
-  CreditBalance,
-  CreditTransaction,
-  DeductCreditResult,
-  GrantCreditResult,
-  AddCreditsResult,
-} from "./operations-server"
 
 /**
  * Get admin Supabase client with service role key
@@ -64,6 +55,8 @@ export interface CreditTransaction {
 export interface DeductCreditResult {
   data: CreditBalance | null
   error: Error | null
+  /** Which balance the tale came from, so a failed start can be refunded to the same place */
+  deductedFrom?: "free" | "purchased"
 }
 
 /**
@@ -220,6 +213,7 @@ export async function deductCredit(userId: string): Promise<DeductCreditResult> 
     }
 
     return {
+      deductedFrom: result.deducted_from === "purchased" ? "purchased" : "free",
       data: {
         free_credits: result.new_free_credits,
         purchased_credits: result.new_purchased_credits,
@@ -337,219 +331,32 @@ export async function addPurchasedCredits(
 }
 
 /**
- * Grant welcome credits to a new user (one-time, idempotent)
- *
- * @param userId - The user's UUID
- * @returns Promise with credit balance or error
- * @security Uses service role - bypasses RLS. For admin/webhook use only.
- *
- * @example
- * const result = await grantWelcomeCredits(userId);
- * if (result.already_granted) {
- *   console.log("Welcome credits already granted");
- * }
+ * Give back a tale when processing could not start (e.g. the n8n trigger failed).
+ * Only for a deduction made moments earlier in the same request. Logged as a "refund".
  */
-export async function grantWelcomeCredits(userId: string): Promise<GrantCreditResult> {
+export async function refundCredit(
+  userId: string,
+  bucket: "free" | "purchased",
+  reason: string,
+): Promise<{ error: Error | null }> {
   try {
     const supabase = getAdminClient()
-
-    // Check if welcome credits already granted
-    const { data: currentBalance, error: balanceError } = await getUserCredits(userId)
-    if (balanceError || !currentBalance) {
-      return { data: null, error: balanceError || new Error("Failed to get current balance") }
+    const { error } = await supabase.rpc("refund_credit_atomic", { user_uuid: userId, bucket })
+    if (error) {
+      console.error("[admin] refundCredit RPC error:", error)
+      return { error: new Error(`Failed to refund credit: ${error.message}`) }
     }
-
-    if (currentBalance.welcome_granted) {
-      // Already granted, return success without granting again (idempotent)
-      return { data: currentBalance, error: null, already_granted: true }
-    }
-
-    // Grant welcome tales (FREE_TIER.welcomeTales)
-    const { error: updateError } = await supabase
-      .from("users")
-      .update({
-        free_credits: FREE_TIER.welcomeTales,
-        welcome_credits_granted: true,
-      })
-      .eq("id", userId)
-
-    if (updateError) {
-      console.error("[admin] grantWelcomeCredits update error:", updateError)
-      return { data: null, error: new Error(`Failed to grant welcome credits: ${updateError.message}`) }
-    }
-
-    // Log transaction
-    const { error: transactionError } = await supabase.from("credit_transactions").insert({
+    const { error: txError } = await supabase.from("credit_transactions").insert({
       user_id: userId,
-      amount: FREE_TIER.welcomeTales,
-      transaction_type: "welcome",
-      metadata: { welcome_bonus: true },
+      amount: 1,
+      transaction_type: "refund",
+      metadata: { reason, refunded_to: bucket },
     })
-
-    if (transactionError) {
-      console.error("[admin] grantWelcomeCredits transaction log error:", transactionError)
-    }
-
-    // Get updated balance
-    const { data: newBalance, error: newBalanceError } = await getUserCredits(userId)
-    if (newBalanceError) {
-      return { data: null, error: newBalanceError }
-    }
-
-    return { data: newBalance, error: null, already_granted: false }
+    if (txError) console.error("[admin] refundCredit transaction log error:", txError)
+    return { error: null }
   } catch (error) {
-    console.error("[admin] grantWelcomeCredits exception:", error)
-    return { data: null, error: error instanceof Error ? error : new Error("Unknown error") }
-  }
-}
-
-/**
- * Grant the free monthly tale (once every FREE_TIER.monthlyIntervalDays days).
- * Never stacks: tops free_credits up to FREE_TIER.monthlyTales. Skips active subscribers,
- * whose plan tales are granted by Stripe invoices instead.
- * (Name and the "weekly" transaction type are kept for the existing cron and DB constraint.)
- *
- * @param userId - The user's UUID
- * @returns Promise with credit balance and days until next credit
- * @security Uses service role - bypasses RLS. For admin/webhook use only.
- *
- * @example
- * const result = await grantWeeklyCredit(userId);
- * if (result.data?.days_until_next) {
- *   console.log(`Next free credit in ${result.data.days_until_next} days`);
- * }
- */
-export async function grantWeeklyCredit(userId: string): Promise<GrantCreditResult> {
-  try {
-    const supabase = getAdminClient()
-
-    // Get current credits and last weekly date
-    const { data: currentBalance, error: balanceError } = await getUserCredits(userId)
-    if (balanceError || !currentBalance) {
-      return { data: null, error: balanceError || new Error("Failed to get current balance") }
-    }
-
-    // ============================================================
-    // SAFEGUARD: Check transaction history directly
-    // This prevents duplicate grants even if last_weekly_credit_date is null
-    // ============================================================
-    const intervalDays = FREE_TIER.monthlyIntervalDays
-
-    // Subscribers get plan tales from Stripe, not the free monthly tale
-    const { data: subRow } = await supabase.from("users").select("subscription_status").eq("id", userId).maybeSingle()
-    if (subRow?.subscription_status === "active" || subRow?.subscription_status === "trialing") {
-      return { data: currentBalance, error: null, already_granted: true }
-    }
-
-    const sevenDaysAgo = new Date(Date.now() - intervalDays * 24 * 60 * 60 * 1000).toISOString()
-
-    const { data: recentWeeklyTransaction, error: txCheckError } = await supabase
-      .from("credit_transactions")
-      .select("created_at")
-      .eq("user_id", userId)
-      .eq("transaction_type", "weekly")
-      .gte("created_at", sevenDaysAgo)
-      .order("created_at", { ascending: false })
-      .limit(1)
-
-    if (txCheckError) {
-      console.error("[admin] grantWeeklyCredit transaction check error:", txCheckError)
-      // Continue with date-based check as fallback
-    }
-
-    if (recentWeeklyTransaction && recentWeeklyTransaction.length > 0) {
-      // User already received a weekly credit within the last 7 days
-      const lastTxDate = new Date(recentWeeklyTransaction[0].created_at)
-      const daysSinceTx = (Date.now() - lastTxDate.getTime()) / (1000 * 60 * 60 * 24)
-      const daysUntilNext = Math.ceil(intervalDays - daysSinceTx)
-
-      console.log(
-        `[admin] User ${userId} already received weekly credit ${daysSinceTx.toFixed(1)} days ago (via transaction check)`,
-      )
-
-      return {
-        data: { ...currentBalance, days_until_next: daysUntilNext },
-        error: null,
-        already_granted: true,
-      }
-    }
-    // </CHANGE>
-
-    const now = new Date()
-    const lastWeeklyDate = currentBalance.last_weekly_date ? new Date(currentBalance.last_weekly_date) : null
-
-    // Calculate days since last weekly credit
-    let daysSinceLastCredit = Number.POSITIVE_INFINITY
-    if (lastWeeklyDate) {
-      const diffMs = now.getTime() - lastWeeklyDate.getTime()
-      daysSinceLastCredit = diffMs / (1000 * 60 * 60 * 24)
-    }
-
-    // Check if 7 days have passed
-    if (lastWeeklyDate && daysSinceLastCredit < intervalDays) {
-      // Not eligible yet
-      const daysUntilNext = Math.ceil(intervalDays - daysSinceLastCredit)
-      return {
-        data: { ...currentBalance, days_until_next: daysUntilNext },
-        error: null,
-        already_granted: true,
-      }
-    }
-
-    // Top up to the free monthly allowance; unused free tales don't stack
-    if (currentBalance.free_credits >= FREE_TIER.monthlyTales) {
-      return {
-        data: { ...currentBalance, days_until_next: 0 },
-        error: null,
-        already_granted: true,
-      }
-    }
-    const grantAmount = FREE_TIER.monthlyTales - currentBalance.free_credits
-    const newFreeCredits = FREE_TIER.monthlyTales
-
-    const { error: updateError } = await supabase
-      .from("users")
-      .update({
-        free_credits: newFreeCredits,
-        last_weekly_credit_date: now.toISOString(),
-      })
-      .eq("id", userId)
-
-    if (updateError) {
-      console.error("[admin] grantWeeklyCredit update error:", updateError)
-      return { data: null, error: new Error(`Failed to grant weekly credit: ${updateError.message}`) }
-    }
-
-    // Log transaction
-    const { error: transactionError } = await supabase.from("credit_transactions").insert({
-      user_id: userId,
-      amount: grantAmount,
-      transaction_type: "weekly",
-      metadata: { monthly_free_tale: true, previous_date: lastWeeklyDate?.toISOString() },
-    })
-
-    if (transactionError) {
-      console.error("[admin] grantWeeklyCredit transaction log error:", transactionError)
-    }
-
-    console.log(`[admin] ✓ Granted weekly credit to user ${userId}`, {
-      previousLastWeeklyDate: lastWeeklyDate?.toISOString() ?? "NULL",
-      newLastWeeklyDate: now.toISOString(),
-      previousFreeCredits: currentBalance.free_credits,
-      newFreeCredits: newFreeCredits,
-    })
-    // </CHANGE>
-
-    // Get updated balance
-    const { data: newBalance, error: newBalanceError } = await getUserCredits(userId)
-    if (newBalanceError) {
-      return { data: null, error: newBalanceError }
-    }
-
-    return { data: { ...newBalance, days_until_next: intervalDays }, error: null, already_granted: false }
-  } catch (error) {
-    console.error("[admin] grantWeeklyCredit exception:", error)
-    return { data: null, error: error instanceof Error ? error : new Error("Unknown error") }
+    console.error("[admin] refundCredit exception:", error)
+    return { error: error instanceof Error ? error : new Error("Unknown error") }
   }
 }
 

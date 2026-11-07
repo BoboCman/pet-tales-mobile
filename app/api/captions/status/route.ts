@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { getAppBaseUrl } from "@/lib/utils/app-url"
+import { internalAuthHeaders } from "@/lib/api/internal-auth"
+import { verifyAdmin, verifySession } from "@/lib/api/auth-middleware"
 
 /**
  * CAPTION STATUS API
@@ -10,6 +12,8 @@ import { getAppBaseUrl } from "@/lib/utils/app-url"
  */
 
 export async function GET(request: NextRequest) {
+  const admin = await requireAdminRequest(request)
+  if (admin) return admin
   const startTime = Date.now()
   console.log("📝 =====================================")
   console.log("📝 CAPTION STATUS API REQUEST")
@@ -169,6 +173,8 @@ export async function GET(request: NextRequest) {
  * POST endpoint for triggering caption generation retry
  */
 export async function POST(request: NextRequest) {
+  const admin = await requireAdminRequest(request)
+  if (admin) return admin
   const startTime = Date.now()
   console.log("🔄 =====================================")
   console.log("🔄 CAPTION RETRY API REQUEST")
@@ -231,7 +237,7 @@ export async function POST(request: NextRequest) {
     try {
       const mergedVideoResponse = await fetch(`${getAppBaseUrl()}/api/cloudinary/merged-video`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...internalAuthHeaders() },
         body: JSON.stringify({ entryId }),
       })
 
@@ -310,4 +316,13 @@ export async function OPTIONS() {
       },
     },
   )
+}
+
+/** Admin debug endpoint: returns a 401/403 response unless the caller is a signed-in admin */
+async function requireAdminRequest(request: Request): Promise<NextResponse | null> {
+  const { user } = await verifySession(request)
+  if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { isAdmin } = await verifyAdmin(user.id)
+  if (!isAdmin) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  return null
 }

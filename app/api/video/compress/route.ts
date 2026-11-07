@@ -3,6 +3,7 @@ import { v2 as cloudinary } from "cloudinary"
 import { createClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 import { getAppBaseUrl } from "@/lib/utils/app-url"
+import { isInternalRequest } from "@/lib/api/internal-auth"
 
 // Cloudinary fetches the source video during upload, which can take a while for large files.
 export const maxDuration = 300
@@ -20,6 +21,9 @@ cloudinary.config({
 type CloudinaryError = { message?: string; name?: string; http_code?: number }
 
 export async function POST(request: NextRequest) {
+  if (!isInternalRequest(request)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
   const startTime = Date.now()
   let entryId: string | undefined
 

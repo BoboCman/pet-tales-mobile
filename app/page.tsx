@@ -56,7 +56,7 @@ export default async function Home() {
               <HeroActionButtons isLoggedIn={!!session} />
 
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                First tale free · 1 more free every month · Nothing to download
+                First tale free · Plans from $4.99 a month · Nothing to download
               </p>
             </div>
 

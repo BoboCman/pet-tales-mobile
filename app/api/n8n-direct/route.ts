@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 import { RateLimiter } from "@/lib/api/auth-middleware"
+import { internalAuthHeaders } from "@/lib/api/internal-auth"
 
 export const maxDuration = 300
 
@@ -58,6 +59,7 @@ async function triggerTTS(entryId: string, baseUrl: string) {
     const ttsResponse = await fetch(new URL("/api/tts/generate", baseUrl).toString(), {
       method: "POST",
       headers: {
+        ...internalAuthHeaders(),
         "Content-Type": "application/json",
         // Pass the webhook secret to bypass auth in the TTS endpoint
         "X-Webhook-Secret": process.env.N8N_WEBHOOK_SECRET || "",
@@ -93,6 +95,7 @@ async function triggerCompression(entryId: string, videoUrl: string, baseUrl: st
     const compressionResponse = await fetch(new URL("/api/video/compress", baseUrl).toString(), {
       method: "POST",
       headers: {
+        ...internalAuthHeaders(),
         "Content-Type": "application/json",
       },
       body: JSON.stringify({

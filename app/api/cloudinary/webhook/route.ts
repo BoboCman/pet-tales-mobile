@@ -6,6 +6,7 @@ import { getAppBaseUrl } from "@/lib/utils/app-url"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { createClient } from "@supabase/supabase-js"
 import crypto from "crypto"
+import { internalAuthHeaders } from "@/lib/api/internal-auth"
 
 // Configure Cloudinary
 cloudinary.config({
@@ -318,7 +319,7 @@ async function handleCaptionCompletion(payload: WebhookPayload, entryId: string)
       try {
         const mergedVideoResponse = await fetch(`${getAppBaseUrl()}/api/cloudinary/merged-video`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...internalAuthHeaders() },
           body: JSON.stringify({ entryId }),
         })
 
@@ -475,7 +476,7 @@ async function handleCompressionCompletion(payload: WebhookPayload, entryId: str
           console.log("🚀 Making request to merged video API from compression webhook...")
           const mergedVideoResponse = await fetch(`${getAppBaseUrl()}/api/cloudinary/merged-video`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...internalAuthHeaders() },
             body: JSON.stringify({ entryId }),
           })
 
