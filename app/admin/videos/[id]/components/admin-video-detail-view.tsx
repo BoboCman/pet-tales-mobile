@@ -142,7 +142,10 @@ export default function AdminVideoDetailView({ videoId }: AdminVideoDetailViewPr
       setRetrying(true)
       const response = await fetch(`/api/admin/videos/${videoId}/retry-merge`, {
         method: "POST",
+        // Admin POST routes reject requests without a JSON content type
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
+        body: "{}",
       })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.error || "Retry failed")
