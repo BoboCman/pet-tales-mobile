@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { sendWelcomeEmail } from "@/lib/email/send"
 import type { Database } from "@/lib/supabase/database.types"
 
 export async function GET(request: NextRequest) {
@@ -63,6 +64,18 @@ export async function GET(request: NextRequest) {
       } catch (syncError) {
         // Log the error but don't block authentication flow
         console.error("Consent sync error:", syncError)
+      }
+
+      // Accounts that confirm by email land here first: send their welcome email (once)
+      if (type === "signup") {
+        try {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser()
+          if (user) await sendWelcomeEmail(user.id)
+        } catch (emailError) {
+          console.error("Welcome email error:", emailError)
+        }
       }
     } catch (exchangeError) {
       console.error("Code exchange error:", exchangeError)

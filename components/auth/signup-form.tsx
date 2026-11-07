@@ -32,6 +32,8 @@ const signupSchema = z.object({
   agreeToTerms: z.boolean().refine((val) => val === true, {
     message: "Please confirm you're 18 or older and accept the Terms",
   }),
+
+  marketingOptIn: z.boolean().optional(),
 })
 
 type SignupFormValues = z.infer<typeof signupSchema>
@@ -53,6 +55,7 @@ export function SignupForm({ redirectTo }: SignupFormProps) {
       password: "",
       username: "",
       agreeToTerms: false,
+      marketingOptIn: false,
     },
   })
 
@@ -73,6 +76,8 @@ export function SignupForm({ redirectTo }: SignupFormProps) {
             terms_accepted_at: consentTimestamp,
             terms_version: LEGAL_VERSIONS.TERMS_VERSION,
             privacy_version: LEGAL_VERSIONS.PRIVACY_VERSION,
+            // Copied to users.marketing_opt_in by the signup trigger
+            marketing_opt_in: data.marketingOptIn === true,
           },
         },
       })
@@ -103,6 +108,11 @@ export function SignupForm({ redirectTo }: SignupFormProps) {
           // Log error but don't block signup
           console.error("[v0] Consent log failed:", consentError)
         }
+      }
+
+      // Welcome email (sent once per account; never blocks signup)
+      if (authData.session) {
+        await fetch("/api/email/welcome", { method: "POST", keepalive: true }).catch(() => {})
       }
 
       toast({
@@ -248,6 +258,21 @@ export function SignupForm({ redirectTo }: SignupFormProps) {
                     </div>
                   </div>
                   <FormMessage className="text-sm" />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="marketingOptIn"
+              render={({ field }) => (
+                <FormItem className="flex items-start space-x-3 space-y-0">
+                  <FormControl>
+                    <Checkbox checked={field.value === true} onCheckedChange={field.onChange} className="mt-1" />
+                  </FormControl>
+                  <FormLabel className="text-sm font-normal cursor-pointer leading-snug">
+                    Send me tips, new voices and occasional offers. Unsubscribe anytime.
+                  </FormLabel>
                 </FormItem>
               )}
             />

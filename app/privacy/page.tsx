@@ -148,6 +148,12 @@ export default function PrivacyPage() {
                 <li>Responding to your inquiries and support requests</li>
                 <li>Sending marketing communications (with your consent, where required)</li>
               </ul>
+              <p className="text-gray-700 dark:text-gray-300 leading-relaxed mt-4">
+                We send email through an email delivery provider (Postmark). Our emails may contain tracking pixels
+                and tracked links so we can see whether an email was delivered, opened or clicked, and stop sending
+                to addresses that bounce or report spam. You can unsubscribe from marketing emails at any time using
+                the link in each email or by contacting us.
+              </p>
 
               <h3 className="text-lg font-medium mt-4 mb-2">2.4 Safety, Security, and Content Moderation</h3>
               <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300 ml-4">
