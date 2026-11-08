@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Pencil, Video, Film, PawPrint } from "lucide-react"
+import { Pencil, Video, Film, PawPrint, Sparkles } from "lucide-react"
+import { isPersonalized } from "@/lib/pets/personality"
 import Link from "next/link"
 import type { Database } from "@/lib/supabase/database.types"
 
@@ -62,6 +63,7 @@ export function PetCardNew({ pet, linkToDetail = false }: PetCardNewProps) {
 
   // Create a dot-separated list of traits (using • character)
   const personalityTraitsText = personalityTraits.join(" • ")
+  const personalized = isPersonalized(pet)
 
   const cardContent = (
     <Card className="overflow-hidden h-full transition-all duration-200 hover:shadow-md">
@@ -77,41 +79,69 @@ export function PetCardNew({ pet, linkToDetail = false }: PetCardNewProps) {
             <h3 className="text-lg font-bold">{pet.name}</h3>
             <p className="text-sm text-muted-foreground">{pet.breed || "Unknown breed"}</p>
             {/* Personality traits as dot-separated list */}
-            {personalityTraitsText && (
+            {personalized && personalityTraitsText && (
               <div className="mt-1">
                 <p className="text-xs text-teal-600 font-medium">{personalityTraitsText}</p>
               </div>
             )}
           </div>
         </div>
-        <div className="flex flex-col gap-2 pt-2">
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 text-gray-500 hover:text-gray-700 hover:bg-gray-50 border-gray-200 bg-transparent"
-              onClick={handleEdit}
-            >
-              <Pencil className="mr-2 h-4 w-4 text-gray-400" />
-              Edit
-            </Button>
-            <Button size="sm" className="flex-1 bg-teal-600 hover:bg-teal-700 text-white" asChild>
-              <Link href={`/dashboard/reels/new?pet=${pet.id}`} onClick={(e) => e.stopPropagation()}>
-                <Video className="mr-2 h-4 w-4" />
-                New Tale
-              </Link>
-            </Button>
-          </div>
+        {/* Personality drives the narration voice, so it gets a clear spot instead of hiding behind "Edit" */}
+        {personalized ? (
+          <Link
+            href={`/dashboard/pets/${pet.id}/personality?next=/dashboard/pets`}
+            onClick={(e) => e.stopPropagation()}
+            className="flex items-center justify-between rounded-xl bg-teal-50 border border-teal-100 px-3 py-2 min-h-[44px]"
+          >
+            <span className="flex items-center gap-2 text-sm text-teal-800">
+              <Sparkles className="h-4 w-4 text-teal-600" />
+              Voice tuned to {pet.name}
+            </span>
+            <span className="text-sm font-medium text-teal-700">Adjust</span>
+          </Link>
+        ) : (
+          <Link
+            href={`/dashboard/pets/${pet.id}/personality?next=/dashboard/pets`}
+            onClick={(e) => e.stopPropagation()}
+            className="block rounded-xl bg-gradient-to-r from-amber-50 to-teal-50 border border-amber-200 px-4 py-3"
+          >
+            <p className="font-semibold text-gray-900 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-amber-500" />
+              Make tales sound like {pet.name}
+            </p>
+            <p className="text-sm text-gray-600 mt-0.5">6 quick taps. Tell us who {pet.name} really is.</p>
+            <span className="mt-2 inline-flex items-center text-sm font-semibold text-teal-700">
+              Tell us about {pet.name} →
+            </span>
+          </Link>
+        )}
+
+        <div className="flex gap-2">
+          <Button size="sm" className="flex-1 h-11 bg-teal-600 hover:bg-teal-700 text-white" asChild>
+            <Link href={`/dashboard/reels/new?pet=${pet.id}`} onClick={(e) => e.stopPropagation()}>
+              <Video className="mr-2 h-4 w-4" />
+              New Tale
+            </Link>
+          </Button>
           <Button
             variant="secondary"
             size="sm"
-            className="w-full bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200"
+            className="flex-1 h-11 bg-white hover:bg-teal-50 text-teal-700 border border-teal-200"
             asChild
           >
             <Link href={`/dashboard/reels?pet=${pet.id}`} onClick={(e) => e.stopPropagation()}>
               <Film className="mr-2 h-4 w-4 text-teal-600" />
-              View Tales
+              Tales
             </Link>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-11 w-11 p-0 text-gray-500"
+            onClick={handleEdit}
+            aria-label={`Edit ${pet.name}'s name, photo and breed`}
+          >
+            <Pencil className="h-4 w-4" />
           </Button>
         </div>
       </CardContent>

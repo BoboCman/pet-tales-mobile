@@ -71,7 +71,7 @@ export default async function PetsPage({ searchParams }: PetsPageProps) {
           <p className="text-teal-50 text-sm md:text-base mb-4">
             {isNewUser
               ? "Welcome! Upload any pet video to make your first tale. We'll set up your pet as you go."
-              : "Manage your pet profiles and create personalized stories"}
+              : "Every tale is told in their voice. The more we know them, the more it sounds like them."}
           </p>
           <div className="flex flex-col md:flex-row gap-2">
             <Button asChild className="bg-white text-teal-600 hover:bg-teal-50 w-full md:w-auto h-12 md:h-10 text-base">
