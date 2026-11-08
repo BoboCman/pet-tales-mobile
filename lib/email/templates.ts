@@ -90,9 +90,21 @@ Tip: short, well-lit clips of 10 to 30 seconds make the best tales.${textFooter(
   }
 }
 
-export function taleReadyEmail(params: { name?: string | null; petName?: string | null; entryId: string }): RenderedEmail {
+export function taleReadyEmail(params: {
+  name?: string | null
+  petName?: string | null
+  entryId: string
+  /** Set when the pet's personality is still at defaults: adds a gentle "tell us about them" line */
+  personalizePetId?: string | null
+}): RenderedEmail {
   const pet = params.petName?.trim() || "your pet"
   const petHtml = escapeHtml(pet)
+  const personalizeUrl = params.personalizePetId
+    ? appUrl(
+        `/dashboard/pets/${params.personalizePetId}/personality?utm_source=email&utm_medium=transactional&utm_campaign=tale_ready_personalize`,
+      )
+    : null
+  const them = pet === "your pet" ? "them" : petHtml
   const viewUrl = appUrl(`/dashboard/reels/${params.entryId}?utm_source=email&utm_medium=transactional&utm_campaign=tale_ready`)
   const hi = params.name ? `Hi ${escapeHtml(params.name)},` : "Hi there,"
   return {
@@ -101,7 +113,16 @@ export function taleReadyEmail(params: { name?: string | null; petName?: string 
       `<p style="margin:0 0 16px">${hi}</p>
 <p style="margin:0 0 16px">Good news: ${petHtml}'s tale is finished, with narration and captions.</p>
 ${button("Watch and share", viewUrl)}
-<p style="margin:0;color:#6b7280;font-size:14px">From there you can download it or copy a share link for TikTok, Instagram, Facebook or a text.</p>`,
+<p style="margin:0;color:#6b7280;font-size:14px">From there you can download it or copy a share link for TikTok, Instagram, Facebook or a text.</p>
+${
+  personalizeUrl
+    ? `<div style="margin:24px 0 0;padding:16px;background:#fffbeb;border-radius:12px;border:1px solid #fde68a">
+<p style="margin:0 0 6px;font-weight:600">✨ Want the next one to sound even more like ${them}?</p>
+<p style="margin:0 0 10px;color:#4b5563;font-size:14px">Six quick taps tell us who ${them} really is: the zoomies, the side-eye, the couch hogging. We write the narration in that voice.</p>
+<a href="${personalizeUrl}" style="color:${BRAND};font-weight:600;text-decoration:none">Tell us about ${them} →</a>
+</div>`
+    : ""
+}`,
       `${pet === "your pet" ? "Your" : `${pet}'s`} tale is ready to watch and share.`,
     ),
     text: `${params.name ? `Hi ${params.name},` : "Hi there,"}
@@ -110,7 +131,13 @@ Good news: ${pet}'s tale is finished, with narration and captions.
 
 Watch and share: ${viewUrl}
 
-From there you can download it or copy a share link for TikTok, Instagram, Facebook or a text.${textFooter()}`,
+From there you can download it or copy a share link for TikTok, Instagram, Facebook or a text.${
+      personalizeUrl
+        ? `
+
+Want the next one to sound even more like ${pet === "your pet" ? "them" : pet}? Six quick taps tell us who they really are: ${personalizeUrl}`
+        : ""
+    }${textFooter()}`,
   }
 }
 

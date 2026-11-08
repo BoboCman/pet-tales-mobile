@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { sendEmail, type SendEmailResult } from "./postmark"
 import { taleGiftedEmail, taleReadyEmail, welcomeEmail } from "./templates"
+import { isPersonalized } from "@/lib/pets/personality"
 
 /** The app's emails (server only). Each one is safe to call more than once. */
 
@@ -31,7 +32,7 @@ export async function sendWelcomeEmail(userId: string): Promise<SendEmailResult>
 export async function sendTaleReadyEmail(entryId: string): Promise<SendEmailResult> {
   const { data: entry } = await supabaseAdmin
     .from("diary_entries")
-    .select("id, user_id, pets:pet_id ( name )")
+    .select("id, user_id, pets:pet_id ( id, name, type, personality_energy, personality_sociability, personality_confidence, personality_obedience, personality_play_style, personality_curiosity, personality_territorial )")
     .eq("id", entryId)
     .maybeSingle()
   if (!entry?.user_id) return { sent: false, skipped: "no entry" }
@@ -46,7 +47,12 @@ export async function sendTaleReadyEmail(entryId: string): Promise<SendEmailResu
     template: "tale_ready",
     dedupeKey: `tale_ready:${entryId}`,
     metadata: { entry_id: entryId },
-    ...taleReadyEmail({ name: user.name, petName: pet?.name ?? null, entryId }),
+    ...taleReadyEmail({
+      name: user.name,
+      petName: pet?.name ?? null,
+      entryId,
+      personalizePetId: pet?.id && !isPersonalized(pet) ? pet.id : null,
+    }),
   })
 }
 
