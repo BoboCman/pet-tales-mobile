@@ -195,7 +195,7 @@ export function SubscriptionCard({ user }: { user: any }) {
           <h4 className="font-semibold mb-2">Good to know</h4>
           <ul className="space-y-1.5 text-muted-foreground">
             <li>• Your first tale is free</li>
-            <li>• Plan tales reset each month and don&apos;t roll over</li>
+            <li>• Unused plan tales roll over for a month (up to two months&apos; worth)</li>
             <li>
               • Questions about billing? Email{" "}
               <a href="mailto:pettaleai@gmail.com" className="underline underline-offset-4">

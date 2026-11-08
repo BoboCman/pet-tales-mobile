@@ -254,7 +254,7 @@ export default function PricingClient({ packs, availablePlanIds }: PricingClient
             Plans renew automatically every month at the price shown until you cancel. Cancel anytime in Settings;
             you keep your tales until the end of the month you paid for.
           </p>
-          <p>Plan tales reset each month and don&apos;t roll over. Payments are non-refundable except as described in our Terms.</p>
+          <p>Unused plan tales roll over to the next month, up to two months&apos; worth. Payments are non-refundable except as described in our Terms.</p>
           <p>
             Prices in US dollars, plus any applicable tax. By subscribing you agree to our{" "}
             <a href="/terms" className="underline underline-offset-4">

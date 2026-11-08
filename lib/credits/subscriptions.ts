@@ -6,8 +6,9 @@ import { getPlanByPriceId } from "@/lib/pricing-config"
  * Subscription credit handling (server/webhook only, uses the service role).
  *
  * Plan tales live in users.free_credits, which deductCredit() spends before purchased_credits.
- * Each paid invoice RESETS free_credits to the plan's monthly tales (no rollover), so pack
- * tales (purchased_credits) are kept and used only after the plan's tales run out.
+ * Each paid invoice ADDS the plan's monthly tales to free_credits, capped at two months' worth
+ * (unused tales roll over for one month). Pack tales (purchased_credits) are kept and used only
+ * after the plan's tales run out.
  * When the subscription ends (canceled/unpaid), free_credits is set to 0. There is no free
  * monthly tale for non-subscribers.
  */
@@ -136,6 +137,15 @@ export async function syncSubscription(
  * Idempotent per invoice: "invoice:<id>" is stored in credit_transactions.stripe_payment_intent_id,
  * which has a unique index.
  */
+/** Unused plan tales roll over for one month: the balance never goes past two months' worth. */
+export const ROLLOVER_MONTHS = 2
+
+export function planTalesAfterRenewal(current: number, talesPerMonth: number): number {
+  const cap = talesPerMonth * ROLLOVER_MONTHS
+  // Never take tales away at renewal, even if an admin gift put someone above the cap
+  return Math.max(current, Math.min(current + talesPerMonth, cap))
+}
+
 export async function grantPlanTalesForInvoice(
   invoice: any,
 ): Promise<{ granted: boolean; duplicate?: boolean; skipped?: string; error: Error | null }> {
@@ -184,11 +194,19 @@ export async function grantPlanTalesForInvoice(
       return { granted: false, duplicate: true, error: null }
     }
 
-    // Reset plan tales to this month's allowance (no rollover). Pack tales are untouched.
-    const { error: updateError } = await supabase
+    // Add this month's tales; unused ones roll over, capped at two months' worth. Pack tales are untouched.
+    const { data: balanceRow, error: balanceError } = await supabase
       .from("users")
-      .update({ free_credits: plan.talesPerMonth })
+      .select("free_credits")
       .eq("id", userId)
+      .maybeSingle()
+    if (balanceError) {
+      return { granted: false, error: new Error(`Failed to read plan tales: ${balanceError.message}`) }
+    }
+    const before = Math.max(0, Number(balanceRow?.free_credits) || 0)
+    const after = planTalesAfterRenewal(before, plan.talesPerMonth)
+
+    const { error: updateError } = await supabase.from("users").update({ free_credits: after }).eq("id", userId)
 
     if (updateError) {
       console.error("[subscriptions] grant update error:", updateError)
@@ -197,7 +215,7 @@ export async function grantPlanTalesForInvoice(
 
     const { error: txError } = await supabase.from("credit_transactions").insert({
       user_id: userId,
-      amount: plan.talesPerMonth,
+      amount: after - before,
       transaction_type: "grant",
       pack_type: null,
       stripe_payment_intent_id: idempotencyKey,
@@ -207,11 +225,14 @@ export async function grantPlanTalesForInvoice(
         invoice_id: invoice.id,
         billing_reason: billingReason,
         subscription_id: subscriptionId,
+        monthly_tales: plan.talesPerMonth,
+        balance_before: before,
+        balance_after: after,
       },
     })
     if (txError) {
-      // Logged but not fatal: the tales are granted. Without this row a Stripe retry could re-grant,
-      // which only resets to the same allowance again.
+      // Logged but not fatal: the tales are granted. Without this row a Stripe retry could add the
+      // month again, which the two-month cap keeps small.
       console.error("[subscriptions] transaction log error:", txError)
     }
 
@@ -219,6 +240,8 @@ export async function grantPlanTalesForInvoice(
       userId,
       plan: plan.id,
       tales: plan.talesPerMonth,
+      before,
+      after,
       invoice: invoice.id,
       billingReason,
     })
