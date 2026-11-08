@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -23,6 +24,7 @@ export function ForgotPasswordForm() {
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
+  const linkExpired = useSearchParams()?.get("error") === "link_expired"
 
   const form = useForm<ForgotPasswordFormValues>({
     resolver: zodResolver(forgotPasswordSchema),
@@ -37,7 +39,7 @@ export function ForgotPasswordForm() {
       const supabase = createClient()
 
       const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
+        redirectTo: `${window.location.origin}/auth/confirm?next=/auth/reset-password`,
       })
 
       if (error) {
@@ -75,7 +77,8 @@ export function ForgotPasswordForm() {
         <CardContent>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Click the link in the email to reset your password. The link will expire in 1 hour.
+              Tap the link in the email to choose a new password. It expires in 1 hour. Nothing there? Check spam, or
+              wait a minute and try again.
             </p>
             <Button asChild variant="outline" className="w-full bg-transparent">
               <Link href="/auth/login">
@@ -96,6 +99,11 @@ export function ForgotPasswordForm() {
         <CardDescription>Enter your email address and we'll send you a password reset link.</CardDescription>
       </CardHeader>
       <CardContent>
+        {linkExpired ? (
+          <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            That reset link has expired or was already used. Send yourself a fresh one below.
+          </p>
+        ) : null}
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
