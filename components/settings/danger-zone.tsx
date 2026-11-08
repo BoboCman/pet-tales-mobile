@@ -6,27 +6,27 @@ import { useToast } from "@/hooks/use-toast"
 import { AlertTriangle } from "lucide-react"
 import { RequestDataButton } from "./request-data-button"
 import { createClient } from "@/lib/supabase/client"
-import { SEO_CONFIG } from "@/lib/constants/seo"
+import { DeleteAccountDialog } from "@/components/account/delete-account-dialog"
 
 export function DangerZone() {
   const { toast } = useToast()
 
-  // Deletion is handled by a person (we cancel any plan and remove the account), so open an email
-  const handleDeleteAccount = async () => {
-    const {
-      data: { user },
-    } = await createClient().auth.getUser()
-    const email = user?.email ?? ""
-    const subject = encodeURIComponent("Delete my account")
-    const body = encodeURIComponent(
-      `Hi Pet Tale AI team,\n\nPlease delete my account and cancel any plan.\n\nAccount email: ${email}\n\nThank you!`,
-    )
-    window.location.href = `mailto:${SEO_CONFIG.contactEmail}?subject=${subject}&body=${body}`
-    toast({
-      title: "Opening your email app",
-      description: "Send the email and we'll confirm once your account is deleted.",
-      duration: 6000,
-    })
+  const deleteAccount = async (): Promise<string | null> => {
+    try {
+      const res = await fetch("/api/account/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: "DELETE" }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) return data.error || "Something went wrong. Please try again."
+      await createClient().auth.signOut().catch(() => {})
+      toast({ title: "Your account has been deleted", description: "We've sent a confirmation email. Take care!" })
+      window.location.href = "/"
+      return null
+    } catch {
+      return "Something went wrong. Please try again."
+    }
   }
 
   return (
@@ -45,17 +45,22 @@ export function DangerZone() {
           <div className="flex-1">
             <h4 className="font-medium text-red-900 dark:text-red-100">Delete Account</h4>
             <p className="text-sm text-red-700 dark:text-red-300 mt-1 leading-relaxed">
-              Email us to permanently delete your account and cancel any plan. Shared tale links stay up unless you ask us to remove them.
+              Permanently delete your account and cancel any plan. Tales you made public stay up at their links unless you ask us to remove them.
             </p>
           </div>
-          <Button
-            variant="destructive"
-            size="sm"
-            className="w-full sm:w-auto sm:min-w-[140px]"
-            onClick={handleDeleteAccount}
-          >
-            Delete Account
-          </Button>
+          <DeleteAccountDialog
+            title="Delete your account?"
+            triggerLabel="Delete Account"
+            confirmLabel="Delete my account"
+            onConfirm={deleteAccount}
+            description={
+              <>
+                <p>This can&apos;t be undone. It deletes your account, your pets and your private tales right away.</p>
+                <p>Any plan is cancelled now, with no refund for the current month, and unused tales are lost.</p>
+                <p>Tales you made public stay up at their links. Email us if you want any of those removed.</p>
+              </>
+            }
+          />
         </div>
       </CardContent>
     </Card>

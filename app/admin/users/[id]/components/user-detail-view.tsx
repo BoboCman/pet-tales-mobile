@@ -29,6 +29,8 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { GiftTalesCard } from "@/components/admin/gift-tales-card"
+import { DeleteAccountDialog } from "@/components/account/delete-account-dialog"
+import { useRouter } from "next/navigation"
 
 interface UserDetailData {
   user: {
@@ -268,6 +270,28 @@ export default function UserDetailView({ userId, adminEmail }: UserDetailViewPro
     }
     const badge = badges[type] || { label: type, className: "bg-gray-100 text-gray-700" }
     return <Badge className={badge.className}>{badge.label}</Badge>
+  }
+
+  const router = useRouter()
+  const deleteUser = async (): Promise<string | null> => {
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ confirm: "DELETE" }),
+      })
+      const result = await res.json().catch(() => ({}))
+      if (!res.ok) return result.error || "Delete failed"
+      toast({
+        title: "User deleted",
+        description: `${result.cancelledSubscriptions ? "Plan cancelled. " : ""}${result.deletedTales} private tales deleted, ${result.keptPublicTales} public kept.`,
+      })
+      router.push("/admin/users")
+      return null
+    } catch {
+      return "Delete failed"
+    }
   }
 
   useEffect(() => {
@@ -835,6 +859,27 @@ export default function UserDetailView({ userId, adminEmail }: UserDetailViewPro
           </CardContent>
         </Card>
       </div>
+
+      {!data.user.isAdmin && (
+        <Card className="border-red-200 dark:border-red-900">
+          <CardHeader>
+            <CardTitle className="text-red-700 dark:text-red-300">Delete user</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+            <p className="text-sm text-gray-600 max-w-2xl">
+              For a deletion request by email. Cancels any Stripe plan now (no refund), deletes their login, pets and
+              private tales, and emails them a confirmation. Public tales stay up at their links.
+            </p>
+            <DeleteAccountDialog
+              title={`Delete ${data.user.email}?`}
+              triggerLabel="Delete user"
+              confirmLabel="Delete user"
+              onConfirm={deleteUser}
+              description={<p>This can&apos;t be undone.</p>}
+            />
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

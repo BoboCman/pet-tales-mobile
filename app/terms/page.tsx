@@ -35,7 +35,7 @@ export default function TermsPage() {
       <div className="container max-w-4xl mx-auto py-12 px-4">
         <div className="bg-white dark:bg-gray-950 rounded-lg shadow-sm border p-8 md:p-12">
           <h1 className="text-4xl font-bold mb-4">Terms of Service</h1>
-          <p className="text-muted-foreground mb-8">Effective Date: November 7, 2026</p>
+          <p className="text-muted-foreground mb-8">Effective Date: November 8, 2026</p>
 
           <div className="prose prose-gray dark:prose-invert max-w-none space-y-8">
             {/* Introduction */}
@@ -130,8 +130,10 @@ export default function TermsPage() {
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
                 We reserve the right to suspend or terminate your account at our sole discretion, without prior notice,
                 for conduct that we determine violates these Terms, is harmful to other users, or is otherwise
-                objectionable. You may request deletion of your account by contacting us at pettaleai@gmail.com. Account
-                deletion requests will be processed within thirty (30) days.
+                objectionable. You can delete your account at any time in your account settings, or by contacting us at
+                pettaleai@gmail.com (requests by email are processed within thirty (30) days). Deletion is immediate and
+                permanent: any subscription is cancelled without a refund for the current billing period, unused credits
+                are forfeited, and your private Pet Tales and pet information are deleted.
               </p>
             </section>
 
@@ -193,9 +195,9 @@ export default function TermsPage() {
                 <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
                   <strong>IMPORTANT:</strong> Shareable links to Pet Tales are designed to be permanent. Once you share
                   a link, the Pet Tale will remain accessible at that link indefinitely, including after you delete your
-                  account. Account deletion removes your personal account information but does not delete Pet Tales or
-                  deactivate shared links. If you wish to remove a specific Pet Tale from public access, you must
-                  request deletion prior to deleting your account by contacting us at pettaleai@gmail.com.
+                  account. Account deletion removes your personal account information and private Pet Tales but does not
+                  delete public Pet Tales or deactivate shared links. If you wish to remove a specific Pet Tale from
+                  public access, make it private before deleting your account, or contact us at pettaleai@gmail.com.
                 </p>
               </div>
 
@@ -415,6 +417,7 @@ export default function TermsPage() {
                 Cancellation takes effect at the end of the current billing period; you keep your plan credits until
                 then and will not be charged again. When the plan ends, any unused plan credits are removed. We will
                 notify you before any price change takes effect, and you may cancel before the new price applies.
+                Deleting your account cancels your plan immediately, without a refund for the current billing period.
               </p>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed mt-4">
                 <strong>Failed payments:</strong> If a renewal payment fails, our payment processor will retry it and
