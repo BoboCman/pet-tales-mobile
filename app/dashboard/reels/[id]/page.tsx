@@ -431,7 +431,12 @@ export default function ReelDetailPage() {
         urlType = isPetTalesTransformation ? "Pet Tales AI" : "original"
       }
 
-      const normalizedUrl = normalizeShareUrl(shareUrl)
+      // Share the tale page, not the bare video file: the page shows a preview card in chats and
+      // feeds, plays the tale, and invites the viewer to make their own. The video file link
+      // (shareUrl) is still what "Download" uses.
+      const normalizedUrl = reel.merged_video_supabase_url
+        ? `${window.location.origin}/tale/${reel.id}`
+        : normalizeShareUrl(shareUrl)
       console.log(`🔗 Sharing ${urlType} video: ${shareUrl} → ${normalizedUrl}`)
 
       if (navigator.share) {
@@ -510,7 +515,7 @@ export default function ReelDetailPage() {
           // User chose to open native share sheet
           await navigator.share({
             title: reel.title || "Pet Tale",
-            text: `Check out ${petName}'s amazing tale! 🐾`,
+            text: `Check out ${petName}'s tale! 🐾`,
             url: normalizedUrl,
           })
         } else if (userChoice === "copy") {
@@ -528,7 +533,7 @@ export default function ReelDetailPage() {
         await navigator.clipboard.writeText(normalizedUrl)
         toast({
           title: "Video link copied!",
-          description: `The ${urlType} video link has been copied to your clipboard`,
+          description: "Tale link copied to your clipboard",
         })
       }
     } catch (err) {
@@ -787,7 +792,7 @@ export default function ReelDetailPage() {
           await navigator.share({
             files: [file],
             title: reel?.title || "Pet Tale",
-            text: `Check out ${petName}'s amazing tale! 🐾`,
+            text: `Check out ${petName}'s tale! 🐾 Made with pettaleai.com`,
           })
 
           console.log("file_share_success", { entryId, bytes: blob.size })
@@ -843,7 +848,9 @@ export default function ReelDetailPage() {
 
       if (fallbackUrl) {
         const transformedUrl = getPetTalesShareUrl(fallbackUrl)
-        const normalizedUrl = normalizeShareUrl(transformedUrl)
+        // The tale page (preview card + "make your own"), not the bare video file
+        const normalizedUrl =
+          reel.merged_video_supabase_url ? `${window.location.origin}/tale/${reel.id}` : normalizeShareUrl(transformedUrl)
 
         console.log(`📋 Copy Link - Transformed URL:`, {
           original: fallbackUrl,
@@ -854,7 +861,7 @@ export default function ReelDetailPage() {
         await navigator.clipboard.writeText(normalizedUrl)
         toast({
           title: "Link copied!",
-          description: "The video link has been copied to your clipboard",
+          description: "Tale link copied. It opens a page that plays the video.",
         })
       } else {
         toast({

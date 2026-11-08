@@ -79,7 +79,7 @@ export function PublicTaleViewer({ tale }: PublicTaleViewerProps) {
   const taleUrl =
     typeof window !== "undefined"
       ? `${window.location.origin}/community/public/${tale.id}`
-      : `https://pettalesai.com/community/public/${tale.id}`
+      : `https://www.pettaleai.com/community/public/${tale.id}`
 
   useEffect(() => {
     console.log("🎬 PublicTaleViewer mounted - hiding bottom nav")

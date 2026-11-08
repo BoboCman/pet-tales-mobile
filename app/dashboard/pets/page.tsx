@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { getUserDetails, getPets } from "@/lib/supabase/server"
+import { getUserDetails, getPets, createClient } from "@/lib/supabase/server"
 import { PlusCircle, ArrowRight, Video } from "lucide-react"
 import { PetCardNew } from "@/components/pets/pet-card-new"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -37,6 +37,17 @@ export default async function PetsPage({ searchParams }: PetsPageProps) {
     userId: user?.id,
   })
 
+  // Tales left, so the home screen says plainly when it's time to pick a plan
+  let talesLeft: number | null = null
+  if (user?.id) {
+    const { data: balance } = await createClient()
+      .from("users")
+      .select("free_credits, purchased_credits")
+      .eq("id", user.id)
+      .maybeSingle()
+    if (balance) talesLeft = (balance.free_credits ?? 0) + (balance.purchased_credits ?? 0)
+  }
+
   // Determine if this is a post-authentication landing
   const isPostAuth = fromSignup || fromSignin
   const isNewUser = newUser || (pets.length === 0 && fromSignup)
@@ -54,7 +65,7 @@ export default async function PetsPage({ searchParams }: PetsPageProps) {
       <div className="bg-teal-600 text-white py-6 px-4 md:py-8">
         <div className="container mx-auto max-w-4xl">
           <div className="mb-4">
-            <h1 className="text-xl md:text-3xl font-bold mb-2">Pet Dashboard</h1>
+            <h1 className="text-xl md:text-3xl font-bold mb-2">Your pets</h1>
             {isPostAuth && userName && <p className="text-teal-100 text-base md:text-lg">Welcome back, {userName}!</p>}
           </div>
           <p className="text-teal-50 text-sm md:text-base mb-4">
@@ -82,6 +93,22 @@ export default async function PetsPage({ searchParams }: PetsPageProps) {
               </Button>
             )}
           </div>
+          {talesLeft !== null && (
+            <p className="mt-3 text-sm text-teal-50">
+              {talesLeft > 0 ? (
+                <>
+                  {talesLeft} {talesLeft === 1 ? "tale" : "tales"} left
+                </>
+              ) : (
+                <>
+                  You're out of tales.{" "}
+                  <Link href="/pricing" className="font-semibold underline underline-offset-2 text-white">
+                    See plans from $4.99
+                  </Link>
+                </>
+              )}
+            </p>
+          )}
         </div>
       </div>
 
