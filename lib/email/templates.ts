@@ -60,6 +60,7 @@ function textFooter(): string {
 export function welcomeEmail(params: { name?: string | null }): RenderedEmail {
   const hi = params.name ? `Hi ${escapeHtml(params.name)},` : "Hi there,"
   const createUrl = appUrl("/dashboard/reels/new?utm_source=email&utm_medium=transactional&utm_campaign=welcome")
+  const petsUrl = appUrl("/dashboard/pets?utm_source=email&utm_medium=transactional&utm_campaign=welcome_personalize")
   return {
     subject: "Welcome to Pet Tale AI 🐾 Your first tale is on us",
     html: layout(
@@ -72,7 +73,12 @@ export function welcomeEmail(params: { name?: string | null }): RenderedEmail {
 <li>Get a vertical video with voice, captions and a share link</li>
 </ol>
 ${button("Make my first tale", createUrl)}
-<p style="margin:0;color:#6b7280;font-size:14px">Tip: short, well-lit clips of 10 to 30 seconds make the best tales.</p>`,
+<p style="margin:0;color:#6b7280;font-size:14px">Tip: short, well-lit clips of 10 to 30 seconds make the best tales.</p>
+<div style="margin:24px 0 0;padding:16px;background:#fffbeb;border-radius:12px;border:1px solid #fde68a">
+<p style="margin:0 0 6px;font-weight:600">✨ Nobody knows your pet like you do</p>
+<p style="margin:0 0 10px;color:#4b5563;font-size:14px">The zoomies, the side-eye, the couch hogging. Tell us who they really are in six quick taps, and every tale is narrated in their voice. Do it whenever you like, before or after your first tale.</p>
+<a href="${petsUrl}" style="color:${BRAND};font-weight:600;text-decoration:none">Tell us about your pet →</a>
+</div>`,
       "Your first tale is free. Turn any pet video into a narrated story in about a minute.",
     ),
     text: `${params.name ? `Hi ${params.name},` : "Hi there,"}
@@ -86,7 +92,9 @@ Your first tale is free. It takes about a minute:
 
 Make your first tale: ${createUrl}
 
-Tip: short, well-lit clips of 10 to 30 seconds make the best tales.${textFooter()}`,
+Tip: short, well-lit clips of 10 to 30 seconds make the best tales.
+
+Nobody knows your pet like you do. Tell us who they really are in six quick taps, and every tale is narrated in their voice: ${petsUrl}${textFooter()}`,
   }
 }
 
