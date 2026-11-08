@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { sendTaleReadyEmail } from "@/lib/email/send"
 import { v2 as cloudinary } from "cloudinary"
 import { findCompressedCopy } from "@/lib/cloudinary-eager"
+import { moveFinishedTaleOffCloudinary } from "@/lib/cloudinary-storage"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import OpenAI from "openai"
 import { isInternalRequest } from "@/lib/api/internal-auth"
@@ -1490,7 +1491,8 @@ export async function POST(request: NextRequest) {
     const supabaseTransfer = await uploadVideoToSupabaseStorage(result.url!, entryId)
 
     // Initialize variables correctly - keep Cloudinary URL as primary
-    const finalVideoUrl = result.url! // ✅ CORRECT - Keep as Cloudinary URL for UI performance
+    // Cloudinary URL until the Supabase copy is confirmed, then the Supabase URL
+    let finalVideoUrl = result.url!
     let petTalesUrl = null
 
     if (supabaseTransfer.success) {
@@ -1509,10 +1511,16 @@ export async function POST(request: NextRequest) {
 
       console.log("💾 Database updated with Pet Tales AI branded URL")
       
-      // Run cleanup asynchronously (don't block response to user)
-      cleanupTemporaryAssets(entryId).catch(err => 
-        console.error("Cleanup error (non-fatal):", err)
+      // Clean up now rather than in the background: Vercel can freeze the function as soon as the
+      // response is sent, which left working files on Cloudinary (billed monthly as storage).
+      await cleanupTemporaryAssets(entryId).catch((err) => console.error("Cleanup error (non-fatal):", err))
+
+      // Play the tale from Supabase and remove the finished copy from Cloudinary too
+      const moved = await moveFinishedTaleOffCloudinary(entryId, supabaseTransfer.supabaseUrl!, result.publicId).catch(
+        (err) => ({ moved: false, reason: describeError(err, "move failed") }),
       )
+      console.log("📦 Finished tale moved off Cloudinary:", moved)
+      if (moved.moved) finalVideoUrl = supabaseTransfer.supabaseUrl!
     } else {
       console.warn("⚠️ Supabase transfer failed, using Cloudinary URL:", supabaseTransfer.error)
       petTalesUrl = null
@@ -1540,7 +1548,7 @@ export async function POST(request: NextRequest) {
       success: true,
       entryId,
       status: "completed",
-      url: finalVideoUrl, // ✅ Cloudinary URL for UI performance
+      url: finalVideoUrl,
       cloudinaryUrl: result.url, // ✅ Explicit Cloudinary URL
       petTalesUrl: petTalesUrl, // ✅ Pet Tales AI branded URL for sharing
       publicId: result.publicId,
