@@ -34,7 +34,7 @@ export default function PrivacyPage() {
       <div className="container max-w-4xl mx-auto py-12 px-4">
         <div className="bg-white dark:bg-gray-950 rounded-lg shadow-sm border p-8 md:p-12">
           <h1 className="text-4xl font-bold mb-4">Privacy Policy</h1>
-          <p className="text-muted-foreground mb-8">Effective Date: November 7, 2026</p>
+          <p className="text-muted-foreground mb-8">Effective Date: November 8, 2026</p>
 
           <div className="prose prose-gray dark:prose-invert max-w-none space-y-8">
             {/* Introduction */}
@@ -354,10 +354,12 @@ export default function PrivacyPage() {
 
               <h3 className="text-lg font-medium mt-4 mb-2">7.2 Account Deletion</h3>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                You may request account deletion by contacting pettaleai@gmail.com. Upon account deletion: Your account,
-                profile, and pet information will be permanently deleted. However, shared Pet Tales accessible via
-                shareable links will remain available indefinitely unless you specifically request removal of individual
-                Pet Tales, as these are licensed content under our Terms of Service.
+                You can delete your account at any time in Settings, or by emailing pettaleai@gmail.com. Deletion takes
+                effect immediately: any subscription is cancelled (no refund for the current billing period), unused
+                tales are forfeited, and your login, profile, pet information and private Pet Tales are permanently
+                deleted. Pet Tales you made public remain available at their shareable links unless you ask us to remove
+                them, as these are licensed content under our Terms of Service. We keep payment and transaction records
+                where the law requires it (for example, for tax purposes).
               </p>
 
               <h3 className="text-lg font-medium mt-4 mb-2">7.3 Third-Party Retention</h3>

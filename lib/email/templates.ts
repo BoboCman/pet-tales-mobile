@@ -135,3 +135,25 @@ ${note ? `\n${note}\n` : ""}
 Make a tale: ${createUrl}${textFooter()}`,
   }
 }
+
+export function accountDeletedEmail(params: { name?: string | null; planCancelled: boolean }): RenderedEmail {
+  const hi = params.name ? `Hi ${escapeHtml(params.name)},` : "Hi there,"
+  const plan = params.planCancelled ? " Your plan has been cancelled, so you won't be charged again." : ""
+  return {
+    subject: "Your Pet Tale AI account has been deleted",
+    html: layout(
+      `<p style="margin:0 0 16px">${hi}</p>
+<p style="margin:0 0 16px">Your Pet Tale AI account, your pets and your private tales have been deleted.${plan}</p>
+<p style="margin:0 0 16px">Tales you made public stay up at their links. If you'd like any of those removed, just reply to this email.</p>
+<p style="margin:0 0 16px">Thanks for making tales with us. You're always welcome back.</p>`,
+      "Your account has been deleted.",
+    ),
+    text: `${params.name ? `Hi ${params.name},` : "Hi there,"}
+
+Your Pet Tale AI account, your pets and your private tales have been deleted.${plan}
+
+Tales you made public stay up at their links. If you'd like any of those removed, just reply to this email.
+
+Thanks for making tales with us. You're always welcome back.${textFooter()}`,
+  }
+}
