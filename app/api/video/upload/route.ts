@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { deductCredit, refundCredit } from "@/lib/credits/operations-admin"
 import { checkRateLimit } from "@/lib/redis/rate-limiter"
+import { cleanQuirks } from "@/lib/pets/personality"
 
 // Server-side upload limit, shared across serverless instances via Redis (Upstash).
 // Separate key from the client pre-check (video_upload, 3/hour) so one upload isn't counted twice.
@@ -193,6 +194,18 @@ export async function POST(request: NextRequest) {
 
     // STEP 7: Trigger n8n workflow (securely from backend)
 
+    // Owner's free-text quirks, read from the database (not the request). Its own query so an
+    // upload never fails if the column isn't there yet.
+    let pet_quirks: string | null = null
+    {
+      const { data: quirksRow, error: quirksError } = await supabase
+        .from("pets")
+        .select("personality_quirks")
+        .eq("id", pet_id)
+        .maybeSingle()
+      if (!quirksError) pet_quirks = cleanQuirks((quirksRow as any)?.personality_quirks)
+    }
+
     const n8nPayload = {
       video_url,
       pet_id,
@@ -209,6 +222,7 @@ export async function POST(request: NextRequest) {
       personality_play_style: personality_play_style ?? null,
       personality_curiosity: personality_curiosity ?? null,
       personality_territorial: personality_territorial ?? null,
+      pet_quirks: pet_quirks ?? "",
       narration_style: narration_style || "british_narrator",
       narration_genre: narration_genre || "comedy", // Added narration_genre to payload
       video_metadata,
@@ -231,6 +245,7 @@ export async function POST(request: NextRequest) {
       play_style: personality_play_style ?? "not set",
       curiosity: personality_curiosity ?? "not set",
       territorial: personality_territorial ?? "not set",
+      quirks: pet_quirks ? `${pet_quirks.length} chars` : "not set",
     })
 
     console.log("🎙️ Narration settings:", {

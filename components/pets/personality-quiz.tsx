@@ -6,7 +6,7 @@ import { Loader2, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { useSupabase } from "@/lib/supabase/provider"
-import { traitQuestions, type PersonalityPet, type TraitKey } from "@/lib/pets/personality"
+import { cleanQuirks, QUIRKS_MAX, traitQuestions, type PersonalityPet, type TraitKey } from "@/lib/pets/personality"
 
 const AGES: Record<string, { label: string; value: string }[]> = {
   dog: [
@@ -49,6 +49,7 @@ export function PersonalityQuiz({ pet, next }: { pet: QuizPet; next?: string }) 
     return initial
   })
   const [age, setAge] = useState<string | null>(pet.pet_age ?? null)
+  const [quirks, setQuirks] = useState(pet.personality_quirks ?? "")
   const [saving, setSaving] = useState(false)
 
   const pronoun = pet.gender === "female" ? "her" : pet.gender === "male" ? "him" : "them"
@@ -59,6 +60,9 @@ export function PersonalityQuiz({ pet, next }: { pet: QuizPet; next?: string }) 
     try {
       const update: Record<string, unknown> = { ...answers, updated_at: new Date().toISOString() }
       if (age) update.pet_age = age
+      const cleaned = cleanQuirks(quirks)
+      // Only send it when it changed, so saving still works before the column exists
+      if (cleaned !== (pet.personality_quirks ?? null)) update.personality_quirks = cleaned
       const { error } = await supabase.from("pets").update(update).eq("id", pet.id)
       if (error) throw error
       toast({ title: `Got it. Next tale will sound more like ${pet.name}.` })
@@ -135,6 +139,26 @@ export function PersonalityQuiz({ pet, next }: { pet: QuizPet; next?: string }) 
             </button>
           ))}
         </div>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="font-semibold text-gray-900">
+          Anything only you would know? <span className="font-normal text-gray-500">(optional)</span>
+        </h2>
+        <p className="text-sm text-gray-600">
+          Nicknames, sworn enemies, favorite snack, weird habits. We&apos;ll slip them into the story.
+        </p>
+        <textarea
+          value={quirks}
+          onChange={(e) => setQuirks(e.target.value.slice(0, QUIRKS_MAX))}
+          rows={3}
+          maxLength={QUIRKS_MAX}
+          placeholder={`e.g. Goes by "Mr. Wiggles". Sworn enemy: the vacuum. Would sell ${pronoun === "them" ? "their" : pronoun === "her" ? "her" : "his"} soul for cheese.`}
+          className="w-full rounded-xl border border-gray-200 p-3 text-base focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+        />
+        <p className="text-right text-xs text-gray-400">
+          {quirks.length}/{QUIRKS_MAX}
+        </p>
       </section>
 
       <div className="fixed inset-x-0 bottom-16 md:bottom-0 bg-white/95 backdrop-blur border-t p-4">

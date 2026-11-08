@@ -13,6 +13,17 @@ export type PersonalityPet = {
   personality_play_style?: number | null
   personality_curiosity?: number | null
   personality_territorial?: number | null
+  /** Free text from the owner: nickname, nemesis, favorite snack... */
+  personality_quirks?: string | null
+}
+
+export const QUIRKS_MAX = 300
+
+/** Trim, collapse whitespace and cap length before it is stored or sent to the narration. */
+export function cleanQuirks(input: unknown): string | null {
+  if (typeof input !== "string") return null
+  const s = input.replace(/\s+/g, " ").trim().slice(0, QUIRKS_MAX)
+  return s || null
 }
 
 export type TraitKey =
@@ -127,5 +138,5 @@ export function traitQuestions(petType: string | null | undefined): TraitQuestio
  */
 export function isPersonalized(pet: PersonalityPet): boolean {
   const values = traitQuestions(pet.type).map((q) => pet[q.key])
-  return values.some((v) => typeof v === "number" && v !== 3)
+  return values.some((v) => typeof v === "number" && v !== 3) || !!pet.personality_quirks?.trim()
 }
