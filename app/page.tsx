@@ -1,6 +1,5 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { BottomNav } from "@/components/layout/bottom-nav"
 import { PublicFooter } from "@/components/public-footer"
 import { PawPrint } from "lucide-react"
 import { getSession } from "@/lib/supabase/server"
@@ -23,7 +22,7 @@ export default async function Home() {
           </Link>
           <nav className="flex gap-2">
             {session ? (
-              <Button asChild size="sm">
+              <Button asChild size="sm" className="bg-teal-600 hover:bg-teal-700">
                 <Link href="/dashboard/reels/new">Make a Tale</Link>
               </Button>
             ) : (
@@ -31,7 +30,7 @@ export default async function Home() {
                 <Button asChild variant="ghost" size="sm">
                   <Link href="/auth/login">Sign In</Link>
                 </Button>
-                <Button asChild size="sm">
+                <Button asChild size="sm" className="bg-teal-600 hover:bg-teal-700">
                   <Link href="/auth/signup">Try Free</Link>
                 </Button>
               </>
@@ -130,13 +129,59 @@ export default async function Home() {
             </Button>
           </div>
         </section>
+
+        {/* Quick answers to the questions that stop people at sign-up */}
+        <section className="py-14 px-4 bg-white dark:bg-gray-900">
+          <div className="max-w-2xl mx-auto">
+            <h2 className="text-2xl font-bold text-center text-gray-900 dark:text-white mb-6">Good to know</h2>
+            <div className="divide-y divide-gray-100 dark:divide-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800">
+              {[
+                {
+                  q: "Is the first tale really free?",
+                  a: "Yes. Sign up with your email and your first tale is on us. No credit card needed.",
+                },
+                {
+                  q: "What clips work best?",
+                  a: "Vertical clips under a minute, up to 75MB. Most phone videos of 15 to 45 seconds are perfect.",
+                },
+                {
+                  q: "Who can see my tales?",
+                  a: "You decide for each tale: keep it to yourself, send the link to family, or post it to Community.",
+                },
+                {
+                  q: "What does it cost after that?",
+                  a: "Plans start at $4.99 a month for 10 tales. Cancel anytime in Settings.",
+                },
+              ].map((item) => (
+                <details key={item.q} className="group p-4 [&_summary::-webkit-details-marker]:hidden">
+                  <summary className="flex cursor-pointer items-center justify-between gap-4 font-medium text-gray-900 dark:text-white min-h-[44px]">
+                    {item.q}
+                    <span className="text-teal-600 transition-transform group-open:rotate-45 text-xl leading-none">+</span>
+                  </summary>
+                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{item.a}</p>
+                </details>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Closing call to action: visitors who scroll this far are deciding */}
+        <section className="py-14 px-4 bg-gradient-to-b from-teal-50/50 to-white dark:from-teal-950/10 dark:to-gray-950 text-center">
+          <div className="max-w-md mx-auto space-y-4">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">What would your pet say?</h2>
+            <p className="text-gray-600 dark:text-gray-400">Find out in about 3 minutes.</p>
+            <Button asChild size="lg" className="w-full h-14 text-lg font-semibold bg-teal-600 hover:bg-teal-700 shadow-lg">
+              <Link href={session ? "/dashboard/reels/new" : "/auth/signup?ref=landing_bottom"}>
+                {session ? "Make a Tale" : "Make Your First Tale Free"}
+              </Link>
+            </Button>
+          </div>
+        </section>
       </main>
 
       {/* Public Footer */}
       <PublicFooter />
 
-      {/* Bottom Navigation for Mobile */}
-      <BottomNav />
     </div>
   )
 }

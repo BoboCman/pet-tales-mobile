@@ -903,6 +903,43 @@ async function waitForCaptionsWithPolling(
   }
 }
 
+/** Free users get the watermark; anyone paying (a plan or a tale pack) does not. */
+async function shouldWatermark(userId: string | null | undefined): Promise<boolean> {
+  if (!userId) return true
+  const { data } = await supabaseAdmin
+    .from("users")
+    .select("subscription_status, purchased_credits, is_admin")
+    .eq("id", userId)
+    .maybeSingle()
+  if (!data) return true
+  if (data.is_admin) return false
+  if (["active", "trialing", "past_due"].includes(data.subscription_status ?? "")) return false
+  if ((data.purchased_credits ?? 0) > 0) return false
+  return true
+}
+
+/**
+ * Save a poster frame next to the finished tale (videos/thumbnails/pet-tale-<id>.jpg), used as
+ * the preview image when a tale link is shared. Must run before the Cloudinary copy is deleted.
+ */
+async function savePosterFrame(finalPublicId: string, entryId: string): Promise<void> {
+  try {
+    const frameUrl = cloudinary.url(finalPublicId, {
+      resource_type: "video",
+      format: "jpg",
+      transformation: [{ start_offset: 1, width: 720, crop: "limit", quality: "auto:good" }],
+    })
+    const res = await fetch(frameUrl)
+    if (!res.ok) throw new Error(`frame ${res.status}`)
+    const { error } = await supabaseAdmin.storage
+      .from("videos")
+      .upload(`thumbnails/pet-tale-${entryId}.jpg`, await res.arrayBuffer(), { contentType: "image/jpeg", upsert: true })
+    if (error) throw new Error(error.message)
+  } catch (error) {
+    console.warn("Poster frame not saved (non-fatal):", describeError(error, "poster failed"))
+  }
+}
+
 /**
  * STEP 8: Download final video from Cloudinary and upload to Supabase Storage
  */
@@ -967,6 +1004,7 @@ async function createMergedVideoWithCloudinarySubtitles(
   optimizedVideoUrl: string | null,
   audioUrl: string,
   entryId: string,
+  watermark = false,
 ): Promise<MergedVideoResult> {
   // Tracks which step is running so a failure says where it happened.
   let currentStep = "STEP 1 (audio upload / captions)"
@@ -1101,6 +1139,19 @@ async function createMergedVideoWithCloudinarySubtitles(
       console.log("  - Has VTT:", captionCheck.hasVtt)
       console.log("  - Error:", captionCheck.error)
       console.log("  - Proceeding without captions")
+    }
+
+    // Free tales carry a small "pettaleai.com" mark so every posted tale points back to the app.
+    // Subscribers (and pack buyers) get clean videos.
+    if (watermark) {
+      transformations.push(
+        {
+          overlay: { font_family: "Arial", font_size: 30, font_weight: "bold", text: "pettaleai.com" },
+          color: "white",
+          opacity: 75,
+        },
+        { flags: "layer_apply", gravity: "north_east", x: 28, y: 48 },
+      )
     }
 
     // Add final transformations for perfect synchronization
@@ -1309,7 +1360,7 @@ export async function POST(request: NextRequest) {
     const { data: entry, error: fetchError } = await supabaseAdmin
       .from("diary_entries")
       .select(
-        "id, optimized_video_url, voiceover_url, cloudinary_public_id, pet_name, title, tts_status, compression_status, merged_video_status, merged_processing_started_at",
+        "id, user_id, optimized_video_url, voiceover_url, cloudinary_public_id, pet_name, title, tts_status, compression_status, merged_video_status, merged_processing_started_at",
       )
       .eq("id", entryId)
       .single()
@@ -1443,11 +1494,14 @@ export async function POST(request: NextRequest) {
 
     // Create merged video using Whisper HYBRID captions
     console.log("🚀 Starting 8-step merged video creation with WHISPER HYBRID SUBTITLES...")
+    const watermark = await shouldWatermark(entry.user_id)
+    console.log("🏷️ Watermark:", watermark)
     const result = await createMergedVideoWithCloudinarySubtitles(
       entry.cloudinary_public_id,
       entry.optimized_video_url,
       entry.voiceover_url,
       entryId,
+      watermark,
     )
 
     if (!result.success) {
@@ -1514,6 +1568,8 @@ export async function POST(request: NextRequest) {
       // Clean up now rather than in the background: Vercel can freeze the function as soon as the
       // response is sent, which left working files on Cloudinary (billed monthly as storage).
       await cleanupTemporaryAssets(entryId).catch((err) => console.error("Cleanup error (non-fatal):", err))
+
+      if (result.publicId) await savePosterFrame(result.publicId, entryId)
 
       // Play the tale from Supabase and remove the finished copy from Cloudinary too
       const moved = await moveFinishedTaleOffCloudinary(entryId, supabaseTransfer.supabaseUrl!, result.publicId).catch(

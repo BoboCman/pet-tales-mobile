@@ -1,10 +1,20 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { usePathname } from "next/navigation"
 import { X, Download, Share } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
+// Only ask once someone is using the app. On the landing, sign-up and shared-tale pages the banner
+// covered the main button for first-time visitors, before they had any reason to install.
+function isAppPage(pathname: string | null): boolean {
+  if (!pathname) return false
+  return pathname.startsWith("/dashboard") && pathname !== "/dashboard/reels/new"
+}
+
 export function InstallPrompt() {
+  const pathname = usePathname()
+  const onAppPage = isAppPage(pathname)
   const [showPrompt, setShowPrompt] = useState(false)
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const [isIOS, setIsIOS] = useState(false)
@@ -33,12 +43,13 @@ export function InstallPrompt() {
 
     window.addEventListener("beforeinstallprompt", handler)
 
-    // For iOS - show banner immediately since there's no automatic prompt
-    if (isIOSDevice) {
-      setShowPrompt(true)
-    }
+    // For iOS there's no automatic prompt; offer it after a short while in the app
+    const timer = isIOSDevice ? window.setTimeout(() => setShowPrompt(true), 15000) : undefined
 
-    return () => window.removeEventListener("beforeinstallprompt", handler)
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handler)
+      if (timer) window.clearTimeout(timer)
+    }
   }, [])
 
   const handleInstall = async () => {
@@ -63,7 +74,7 @@ export function InstallPrompt() {
     setShowIOSInstructions(false)
   }
 
-  if (!showPrompt) return null
+  if (!showPrompt || !onAppPage) return null
 
   return (
     <>
