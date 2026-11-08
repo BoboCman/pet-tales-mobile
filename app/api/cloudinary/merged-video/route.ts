@@ -1145,14 +1145,16 @@ async function createMergedVideoWithCloudinarySubtitles(
     // Subscribers (and pack buyers) get clean videos.
     if (watermark) {
       transformations.push(
+        // White text with a dark outline reads on any background (grass, snow, a black cat, a white
+        // wall), which plain white or a fixed colour can't. No blinking: it looks like spam on feeds.
         {
-          overlay: { font_family: "Arial", font_size: 30, font_weight: "bold", text: "pettaleai.com" },
+          overlay: { font_family: "Arial", font_size: 34, font_weight: "bold", stroke: "stroke", text: "pettaleai.com" },
           color: "white",
-          opacity: 80,
+          border: "4px_solid_rgb:000000b3",
         },
-        // Top centre, 15% down. Corners get cropped when a player fills a phone screen (and on
+        // Top centre, 19% down. Corners get cropped when a player fills a phone screen (and on
         // TikTok/Reels the top bar and right-hand buttons cover them); the centre line never is.
-        { flags: "layer_apply", gravity: "north", y: 0.15 },
+        { flags: "layer_apply", gravity: "north", y: 0.19 },
       )
     }
 
