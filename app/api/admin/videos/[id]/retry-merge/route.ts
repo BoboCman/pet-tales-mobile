@@ -62,12 +62,8 @@ const handler = requireAdmin(async (_request: Request, context: AdminContext & {
     // The compression webhook starts the merge when the 720p copy is ready
     return NextResponse.json({ success: true, rebuilding: true })
   }
-  if (entry.compression_status !== "completed" || !entry.optimized_video_url) {
-    return NextResponse.json(
-      { error: "The video is still being compressed. Try again in a few minutes." },
-      { status: 409 },
-    )
-  }
+  // A tale that looks stuck in compression goes to the merge too: it checks Cloudinary for the
+  // 720p copy itself, and says "still being compressed" if it really is not there yet.
   if (!entry.voiceover_url) {
     return NextResponse.json({ error: "This tale has no narration yet, so it can't be finished" }, { status: 409 })
   }
@@ -82,7 +78,11 @@ const handler = requireAdmin(async (_request: Request, context: AdminContext & {
   const data = await res.json().catch(() => ({}))
 
   if (res.status === 409) {
-    return NextResponse.json({ error: data.reason || "Already running" }, { status: 409 })
+    const reason =
+      data.reason === "Waiting for compression to finish"
+        ? "The 720p copy isn't on Cloudinary yet. Try again in a few minutes, or use Redo tale."
+        : data.reason || data.error || "Already running"
+    return NextResponse.json({ error: reason }, { status: 409 })
   }
   if (!res.ok) {
     return NextResponse.json({ error: data.error || "Retry failed" }, { status: 502 })

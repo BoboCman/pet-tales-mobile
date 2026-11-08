@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sendTaleReadyEmail } from "@/lib/email/send"
 import { v2 as cloudinary } from "cloudinary"
+import { findCompressedCopy } from "@/lib/cloudinary-eager"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import OpenAI from "openai"
 import { isInternalRequest } from "@/lib/api/internal-auth"
@@ -1187,14 +1188,21 @@ async function createMergedVideoWithCloudinarySubtitles(
       })
       console.log("🔗 Pre-trimmed source URL:", trimmedSourceUrl.substring(0, 160) + "...")
 
-      finalResult = await uploadWithEagerAsync(
-        trimmedSourceUrl,
-        finalPublicId,
-        transformations,
-        "Final Video Transformation (STEP 6, fallback)",
-      )
+      // Keep the first error too: the fallback renders from the stored original, so for a large
+      // upload its own error ("too large") hides the reason the normal path failed.
+      const firstTry = describeError(singlePassError, "single-pass render failed")
+      try {
+        finalResult = await uploadWithEagerAsync(
+          trimmedSourceUrl,
+          finalPublicId,
+          transformations,
+          "Final Video Transformation (STEP 6, fallback)",
+        )
+      } catch (fallbackError) {
+        throw new Error(`${describeError(fallbackError, "fallback render failed")} (first try: ${firstTry})`)
+      }
       if (!finalResult.success) {
-        throw new Error(`STEP 6 failed: ${finalResult.error}`)
+        throw new Error(`STEP 6 failed: ${finalResult.error} (first try: ${firstTry})`)
       }
       if (isTooLong(finalResult.duration)) {
         console.warn(
@@ -1318,13 +1326,31 @@ export async function POST(request: NextRequest) {
     console.log("  - Cloudinary ID:", entry.cloudinary_public_id)
     console.log("  - TTS Status:", entry.tts_status)
 
-    // Validate required data
-    if (!entry.optimized_video_url || !entry.voiceover_url || !entry.cloudinary_public_id) {
-      const missing = []
-      if (!entry.optimized_video_url) missing.push("video")
-      if (!entry.voiceover_url) missing.push("audio")
-      if (!entry.cloudinary_public_id) missing.push("cloudinary_id")
-      return NextResponse.json({ error: `Missing required data: ${missing.join(", ")}` }, { status: 400 })
+    // A missed Cloudinary notification must not leave the tale waiting forever: if the 720p copy
+    // is not recorded yet, ask Cloudinary whether it already exists and record it.
+    if (
+      entry.cloudinary_public_id &&
+      (!entry.optimized_video_url || entry.compression_status === "processing" || entry.compression_status === "pending")
+    ) {
+      try {
+        const readyUrl = await findCompressedCopy(entry.cloudinary_public_id)
+        if (readyUrl) {
+          console.log("✅ 720p copy already exists on Cloudinary; recording it")
+          await supabaseAdmin
+            .from("diary_entries")
+            .update({
+              optimized_video_url: readyUrl,
+              compression_status: "completed",
+              compression_completed_at: new Date().toISOString(),
+              compression_error: null,
+            })
+            .eq("id", entryId)
+          entry.optimized_video_url = readyUrl
+          entry.compression_status = "completed"
+        }
+      } catch (lookupError) {
+        console.warn("Could not check Cloudinary for the 720p copy:", describeError(lookupError, "lookup failed"))
+      }
     }
 
     // Don't start before the 720p copy exists. Rendering from a copy that is still being made makes
@@ -1336,6 +1362,22 @@ export async function POST(request: NextRequest) {
         { skipped: true, entryId, reason: "Waiting for compression to finish" },
         { status: 409 },
       )
+    }
+
+    if (entry.compression_status === "failed") {
+      return NextResponse.json(
+        { error: "Cloudinary could not make the 720p copy. Use Redo tale to start again from the upload." },
+        { status: 409 },
+      )
+    }
+
+    // Validate required data
+    if (!entry.optimized_video_url || !entry.voiceover_url || !entry.cloudinary_public_id) {
+      const missing = []
+      if (!entry.optimized_video_url) missing.push("video")
+      if (!entry.voiceover_url) missing.push("audio")
+      if (!entry.cloudinary_public_id) missing.push("cloudinary_id")
+      return NextResponse.json({ error: `Missing required data: ${missing.join(", ")}` }, { status: 400 })
     }
 
     // Claim the job. Several routes (TTS, compression webhook, Cloudinary webhook, caption retry,
