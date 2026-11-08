@@ -409,8 +409,9 @@ export default function TermsPage() {
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed mt-4">
                 <strong>Automatic renewal:</strong> Plans renew automatically each month and your payment method is
                 charged the plan price at the start of each billing period until you cancel. Each paid billing period
-                sets your plan credits to the plan&apos;s monthly amount. Unused plan credits do not roll over to the
-                next billing period.
+                adds the plan&apos;s monthly credits to your plan credits. Unused plan credits roll over to the next
+                billing period, up to a maximum of two months&apos; worth of plan credits; credits above that maximum
+                are not added.
               </p>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed mt-4">
                 <strong>Cancellation:</strong> You can cancel at any time from your account settings (Manage plan).
