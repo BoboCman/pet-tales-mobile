@@ -1,3 +1,4 @@
+import { COMPRESS_EAGER } from "@/lib/cloudinary-eager"
 import { type NextRequest, NextResponse } from "next/server"
 import { v2 as cloudinary } from "cloudinary"
 import { createClient } from "@supabase/supabase-js"
@@ -120,17 +121,12 @@ export async function POST(request: NextRequest) {
       resource_type: "video" as const,
       folder: "pawsense/compressed",
       public_id: `entry_${entryId}_compressed`,
-      eager: [
-        {
-          width: 720,
-          crop: "scale",
-          video_codec: "h264",
-          audio_codec: "aac",
-          format: "mp4",
-        },
-      ],
+      eager: [{ ...COMPRESS_EAGER }],
       eager_async: true,
+      // notification_url only reports the stored original. The "720p copy is ready" notification is
+      // sent to eager_notification_url, and only if it is set (see lib/cloudinary-eager.ts).
       notification_url: webhookUrl,
+      eager_notification_url: webhookUrl,
       context: `entryId=${entryId}`,
       timeout: 300000,
     }

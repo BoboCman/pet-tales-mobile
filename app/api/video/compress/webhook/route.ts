@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 import { getAppBaseUrl } from "@/lib/utils/app-url"
 import { internalAuthHeaders } from "@/lib/api/internal-auth"
-import { readyEagerUrl } from "@/lib/cloudinary-eager"
+import { eagerFailure, readyEagerUrl } from "@/lib/cloudinary-eager"
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -17,7 +17,7 @@ type CompressionNotification = {
   notification_type?: string
   public_id?: string
   error?: unknown
-  eager?: Array<{ secure_url?: string; url?: string; format?: string; bytes?: number; status?: string }>
+  eager?: Array<{ secure_url?: string; url?: string; format?: string; bytes?: number; status?: string; reason?: string }>
 }
 
 // Cloudinary signs notifications with sha1 or sha256 depending on the account's signature algorithm
@@ -98,11 +98,12 @@ export async function POST(request: NextRequest) {
   if (!compressedUrl) {
     // Cloudinary also sends a notification for the raw upload itself; the entry keeps
     // using the original video until the eager transformation reports back.
-    if (payload.error) {
-      console.error("Compress webhook: Cloudinary reported an error for", publicId, payload.error)
+    const failure = payload.error ? JSON.stringify(payload.error) : eagerFailure(payload)
+    if (failure) {
+      console.error("Compress webhook: Cloudinary reported an error for", publicId, failure)
       await supabase
         .from("diary_entries")
-        .update({ compression_status: "failed", compression_error: JSON.stringify(payload.error).slice(0, 500) })
+        .update({ compression_status: "failed", compression_error: failure.slice(0, 500) })
         .eq("cloudinary_public_id", publicId)
     } else {
       console.log("Compress webhook: no eager secure_url yet for", publicId, "type:", payload.notification_type)
