@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js"
 import { stripe } from "@/lib/stripe"
 import { getPlanByPriceId } from "@/lib/pricing-config"
+import { sendSubscriptionThanksEmail } from "@/lib/email/send"
 
 /**
  * Subscription credit handling (server/webhook only, uses the service role).
@@ -245,6 +246,14 @@ export async function grantPlanTalesForInvoice(
       invoice: invoice.id,
       billingReason,
     })
+    if (billingReason === "subscription_create") {
+      // Never let an email problem fail the webhook; the send is deduped per subscription
+      try {
+        await sendSubscriptionThanksEmail(userId, subscriptionId, plan)
+      } catch (emailError) {
+        console.error("[subscriptions] thank-you email error:", emailError)
+      }
+    }
     return { granted: true, error: null }
   } catch (error) {
     console.error("[subscriptions] grantPlanTalesForInvoice exception:", error)

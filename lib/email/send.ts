@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { sendEmail, type SendEmailResult } from "./postmark"
-import { taleGiftedEmail, taleReadyEmail, welcomeEmail } from "./templates"
+import { subscriptionThanksEmail, taleGiftedEmail, taleReadyEmail, welcomeEmail } from "./templates"
 import { isPersonalized } from "@/lib/pets/personality"
 
 /** The app's emails (server only). Each one is safe to call more than once. */
@@ -71,5 +71,23 @@ export async function sendTaleGiftedEmail(
     dedupeKey: `tale_gifted:${giftId}`,
     metadata: { tales },
     ...taleGiftedEmail({ name: user.name, tales, note }),
+  })
+}
+
+/** Thank-you when someone starts a plan (once per subscription) */
+export async function sendSubscriptionThanksEmail(
+  userId: string,
+  subscriptionId: string,
+  plan: { name: string; talesPerMonth: number },
+): Promise<SendEmailResult> {
+  const user = await getRecipient(userId)
+  if (!user) return { sent: false, skipped: "no user or email" }
+  return sendEmail({
+    to: user.email,
+    userId: user.id,
+    template: "subscription_thanks",
+    dedupeKey: `subscription_thanks:${subscriptionId}`,
+    metadata: { subscription_id: subscriptionId, plan: plan.name },
+    ...subscriptionThanksEmail({ name: user.name, planName: plan.name, talesPerMonth: plan.talesPerMonth }),
   })
 }

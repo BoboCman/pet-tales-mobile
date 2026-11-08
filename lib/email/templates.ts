@@ -171,6 +171,68 @@ Make a tale: ${createUrl}${textFooter()}`,
   }
 }
 
+export function subscriptionThanksEmail(params: {
+  name?: string | null
+  planName: string
+  talesPerMonth: number
+}): RenderedEmail {
+  const hi = params.name ? `Hi ${escapeHtml(params.name)},` : "Hi there,"
+  const utm = (c: string) => `utm_source=email&utm_medium=transactional&utm_campaign=subscription_thanks_${c}`
+  const createUrl = appUrl(`/dashboard/reels/new?${utm("create")}`)
+  const talesUrl = appUrl(`/dashboard/reels?${utm("tales")}`)
+  const communityUrl = appUrl(`/community/public?${utm("community")}`)
+  const settingsUrl = appUrl(`/dashboard/settings?${utm("settings")}`)
+  const plan = escapeHtml(params.planName)
+  const n = params.talesPerMonth
+  const step = (num: string, title: string, body: string) =>
+    `<tr><td style="vertical-align:top;padding:0 12px 14px 0"><div style="width:28px;height:28px;border-radius:14px;background:#f0fdfa;color:${BRAND};font-weight:700;text-align:center;line-height:28px">${num}</div></td>
+<td style="vertical-align:top;padding:0 0 14px"><strong>${title}</strong><br><span style="color:#4b5563;font-size:14px">${body}</span></td></tr>`
+  return {
+    subject: `Welcome to ${params.planName} 🐾 Your pet's stories just got a lot bigger`,
+    html: layout(
+      `<p style="margin:0 0 16px">${hi}</p>
+<p style="margin:0 0 16px">Thank you for joining <strong>${plan}</strong>. You're now helping keep Pet Tale AI running, and your pet is officially a storyteller.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px;background:#f0fdfa;border-radius:12px"><tr><td style="padding:16px 18px;font-size:15px;line-height:1.7">
+🎬 <strong>${n} tales every month</strong><br>
+🔁 Unused tales roll over for a month<br>
+✨ No watermark on your tales<br>
+🎙️ All narrator voices and vibes
+</td></tr></table>
+${button("Make a tale", createUrl)}
+<p style="margin:0 0 12px;font-weight:600;font-size:17px">Your tales are made to be shared</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 8px">
+${step("1", "Send it to family", "Open any tale and tap <em>Share to...</em> to send a link by text, WhatsApp or email. It plays right in the browser, no app needed.")}
+${step("2", "Post it to social", "Download the vertical video for TikTok, Reels or Shorts, or copy the link for Facebook.")}
+${step("3", "Join the community", "Flip a tale from <em>Private</em> to <em>Public</em> and it shows up in the Community Spotlight, where other pet parents can watch and like it.")}
+</table>
+<p style="margin:0 0 6px"><a href="${communityUrl}" style="color:${BRAND};font-weight:600;text-decoration:none">See what other pets are up to →</a></p>
+<p style="margin:0 0 20px"><a href="${talesUrl}" style="color:${BRAND};font-weight:600;text-decoration:none">Go to my tales →</a></p>
+<p style="margin:0;color:#6b7280;font-size:14px">Your plan renews monthly. You can change or cancel anytime in <a href="${settingsUrl}" style="color:#6b7280">Settings</a>, and you keep your tales until the end of the month you paid for.</p>`,
+      `${n} tales a month, no watermark, and three easy ways to share them.`,
+    ),
+    text: `${params.name ? `Hi ${params.name},` : "Hi there,"}
+
+Thank you for joining ${params.planName}. You're now helping keep Pet Tale AI running, and your pet is officially a storyteller.
+
+- ${n} tales every month
+- Unused tales roll over for a month
+- No watermark on your tales
+- All narrator voices and vibes
+
+Make a tale: ${createUrl}
+
+Your tales are made to be shared:
+1. Send it to family: open any tale and tap "Share to..." to send a link by text, WhatsApp or email.
+2. Post it to social: download the vertical video for TikTok, Reels or Shorts, or copy the link for Facebook.
+3. Join the community: flip a tale from Private to Public and it shows up in the Community Spotlight.
+
+See other pets' tales: ${communityUrl}
+My tales: ${talesUrl}
+
+Your plan renews monthly. Change or cancel anytime in Settings (${settingsUrl}); you keep your tales until the end of the month you paid for.${textFooter()}`,
+  }
+}
+
 export function accountDeletedEmail(params: { name?: string | null; planCancelled: boolean }): RenderedEmail {
   const hi = params.name ? `Hi ${escapeHtml(params.name)},` : "Hi there,"
   const plan = params.planCancelled ? " Your plan has been cancelled, so you won't be charged again." : ""
