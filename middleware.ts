@@ -119,7 +119,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // If user is authenticated and trying to access auth pages, redirect to dashboard
-  if (pathname.startsWith("/auth/") && pathname !== "/auth/callback") {
+  // (not the email-link pages: a reset link signs you in, then you still need to set the password)
+  const authPagesForSignedIn = ["/auth/callback", "/auth/confirm", "/auth/reset-password"]
+  if (pathname.startsWith("/auth/") && !authPagesForSignedIn.includes(pathname)) {
     try {
       const {
         data: { session },
