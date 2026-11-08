@@ -1148,9 +1148,11 @@ async function createMergedVideoWithCloudinarySubtitles(
         {
           overlay: { font_family: "Arial", font_size: 30, font_weight: "bold", text: "pettaleai.com" },
           color: "white",
-          opacity: 75,
+          opacity: 80,
         },
-        { flags: "layer_apply", gravity: "north_east", x: 28, y: 48 },
+        // Top centre, 15% down. Corners get cropped when a player fills a phone screen (and on
+        // TikTok/Reels the top bar and right-hand buttons cover them); the centre line never is.
+        { flags: "layer_apply", gravity: "north", y: 0.15 },
       )
     }
 
