@@ -16,6 +16,7 @@ cloudinary.config({
 type CompressionNotification = {
   notification_type?: string
   public_id?: string
+  duration?: number
   error?: unknown
   eager?: Array<{ secure_url?: string; url?: string; format?: string; bytes?: number; status?: string; reason?: string }>
 }
@@ -90,6 +91,24 @@ export async function POST(request: NextRequest) {
       persistSession: false,
     },
   })
+
+  // The upload notification carries the clip's length, which the Admin API sometimes leaves out
+  // later. Keep it for the merge (merged-video reads merge_details.upload_clip_seconds).
+  if (typeof payload.duration === "number" && payload.duration > 0) {
+    const { data: row } = await supabase
+      .from("diary_entries")
+      .select("id, merge_details" as any)
+      .eq("cloudinary_public_id", publicId)
+      .maybeSingle()
+    const current = ((row as any)?.merge_details as Record<string, any> | null) ?? {}
+    const { error: durationError } = row
+      ? await supabase
+          .from("diary_entries")
+          .update({ merge_details: { ...current, upload_clip_seconds: payload.duration } } as any)
+          .eq("id", (row as any).id)
+      : { error: null }
+    if (durationError) console.warn("Compress webhook: could not save clip length:", durationError.message)
+  }
 
   // The "upload" notification already lists the eager URL while it is still rendering, so only
   // the "eager" notification (or a finished status) counts. See lib/cloudinary-eager.ts.
