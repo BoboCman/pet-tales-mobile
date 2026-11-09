@@ -20,8 +20,8 @@ export default function LoginPage({
 
   return (
     <div className="flex flex-col min-h-screen">
-      <div className="container flex flex-1 w-screen flex-col items-center justify-center px-4 py-8">
-        <div className="mx-auto flex w-full flex-col justify-center sm:w-[400px]">
+      <div className="flex flex-1 flex-col px-5 pb-10 pt-3 sm:items-center sm:justify-center sm:pt-10">
+        <div className="mx-auto w-full max-w-sm">
           <LoginForm redirectTo={redirectTo} />
         </div>
       </div>

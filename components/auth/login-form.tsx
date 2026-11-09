@@ -6,13 +6,13 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
-import { ChevronLeft, Loader2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
+import { AuthHeader, PasswordInput, authInputClass } from "@/components/auth/auth-ui"
 
 const loginSchema = z.object({
   email: z.string().min(1, "Email is required").email("Please enter a valid email address"),
@@ -77,94 +77,81 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
   }
 
   return (
-    <Card className="border-0 shadow-lg">
-      <CardHeader className="space-y-3 pb-6">
-        <div className="flex items-center justify-between">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href={redirectTo || "/"}>
-              <ChevronLeft className="mr-2 h-4 w-4" />
-              Back
-            </Link>
+    <div className="w-full">
+      <AuthHeader backHref={redirectTo || "/"} title="Welcome back" subtitle="Sign in to see your pets and tales." />
+
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="mt-6 space-y-4" noValidate>
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="you@example.com"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    className={authInputClass}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Password</FormLabel>
+                <FormControl>
+                  <PasswordInput placeholder="Your password" autoComplete="current-password" {...field} />
+                </FormControl>
+                <FormMessage />
+                <div className="-mt-1 text-right">
+                  <Link
+                    href="/auth/forgot-password"
+                    className="inline-flex items-center text-sm font-medium text-teal-700 dark:text-teal-400"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+              </FormItem>
+            )}
+          />
+
+          <Button
+            type="submit"
+            disabled={isLoading}
+            className="h-12 w-full rounded-xl bg-teal-600 text-base font-semibold hover:bg-teal-700"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Signing in…
+              </>
+            ) : (
+              "Sign in"
+            )}
           </Button>
-        </div>
-        <CardTitle className="text-2xl sm:text-xl font-semibold text-center leading-tight">Welcome back</CardTitle>
-        <CardDescription className="text-base sm:text-sm text-center leading-relaxed px-2">
-          <div className="text-teal-600 font-medium">Sign in to your Pet Tale AI account</div>
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel className="text-base font-medium">Email</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="your@email.com"
-                      type="email"
-                      autoComplete="email"
-                      className="h-12 text-base"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage className="text-sm" />
-                </FormItem>
-              )}
-            />
+        </form>
+      </Form>
 
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel className="text-base font-medium">Password</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="••••••••"
-                      type="password"
-                      autoComplete="current-password"
-                      className="h-12 text-base"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage className="text-sm" />
-                </FormItem>
-              )}
-            />
-
-            <div className="text-right">
-              <Link
-                href="/auth/forgot-password"
-                className="text-sm text-muted-foreground hover:text-primary underline underline-offset-4"
-              >
-                Forgot password?
-              </Link>
-            </div>
-
-            <Button type="submit" className="w-full h-12 text-base font-medium" disabled={isLoading}>
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
-                </>
-              ) : (
-                "Sign In"
-              )}
-            </Button>
-          </form>
-        </Form>
-      </CardContent>
-      <CardFooter className="flex flex-col items-center justify-center space-y-4 pt-6">
-        <div className="text-base sm:text-sm text-muted-foreground text-center leading-relaxed">
-          Don't have an account?{" "}
-          <Link href="/auth/signup" className="underline underline-offset-4 hover:text-primary font-medium">
-            Sign up
-          </Link>
-        </div>
-      </CardFooter>
-    </Card>
+      <p className="mt-6 text-center text-sm text-gray-500">
+        New to Pet Tale?{" "}
+        <Link
+          href={redirectTo ? `/auth/signup?redirectTo=${encodeURIComponent(redirectTo)}` : "/auth/signup"}
+          className="font-semibold text-teal-700 dark:text-teal-400"
+        >
+          Create an account
+        </Link>
+      </p>
+    </div>
   )
 }
