@@ -79,11 +79,11 @@ export default async function Home() {
                 First tale free · no card needed
               </span>
               <h1 className="mt-4 text-4xl font-bold leading-[1.1] tracking-tight text-gray-900 sm:text-5xl lg:text-6xl dark:text-white">
-                Your pet, finally talking.
+                What was your pet thinking?
               </h1>
               <p className="mx-auto mt-4 max-w-md text-lg text-gray-600 lg:mx-0 dark:text-gray-400">
-                Upload a clip. A few minutes later it&apos;s back in your pet&apos;s own voice, with captions, ready to
-                post or send to family.
+                Pet Tale watches your clip and turns every moment into your pet&apos;s own story, narrated and
+                captioned, ready to post in minutes.
               </p>
               <Link
                 href={ctaHref}
@@ -118,9 +118,10 @@ export default async function Home() {
                   1
                 </span>
                 <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white">Upload a clip</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">We watch every moment</h3>
                   <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
-                    Any video from your phone. Just tell us your pet&apos;s name.
+                    Upload any clip from your phone. Our AI picks out what happens: the pounce, the side-eye, the
+                    zoomies.
                   </p>
                 </div>
               </li>
@@ -129,9 +130,10 @@ export default async function Home() {
                   2
                 </span>
                 <div className="min-w-0">
-                  <h3 className="font-semibold text-gray-900 dark:text-white">Pick a voice and a vibe</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">Your pet tells the story</h3>
                   <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
-                    12 voices and 6 vibes, or keep our pick.
+                    What they were thinking, written to follow the action and narrated in one of 12 voices. Pick a
+                    vibe or keep ours.
                   </p>
                   <div className="mt-2.5 flex flex-wrap gap-1.5">
                     {NARRATION_GENRES.map((g) => (
@@ -150,13 +152,16 @@ export default async function Home() {
                   3
                 </span>
                 <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white">Share it</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">Post it</h3>
                   <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
-                    A vertical video with voice and captions, plus a link that plays anywhere.
+                    A vertical, captioned video made to share, plus a link that plays anywhere.
                   </p>
                 </div>
               </li>
             </ol>
+            <p className="mt-4 text-center text-sm font-medium text-gray-700 dark:text-gray-300">
+              The script, voiceover, captions and edit, done for you.
+            </p>
 
             {/* What makes it theirs */}
             <div className="mt-3 flex gap-4 rounded-2xl bg-gradient-to-r from-amber-50 to-teal-50 p-4 ring-1 ring-amber-100 dark:from-amber-900/20 dark:to-teal-900/20 dark:ring-amber-900/40">
@@ -184,7 +189,8 @@ export default async function Home() {
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white">For pet creators</h3>
                 <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
-                  Narrated, captioned posts for Reels, TikTok and Shorts in minutes, in a voice your followers know.
+                  Skip writing scripts and recording voiceovers. Narrated, captioned posts for Reels, TikTok and
+                  Shorts in minutes.
                 </p>
               </div>
             </div>
