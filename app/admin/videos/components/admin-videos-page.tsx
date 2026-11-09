@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { TaleHealthBadge } from "@/components/admin/tale-health-badge"
+import type { TaleHealth } from "@/lib/tale-health"
 import { useToast } from "@/hooks/use-toast"
 import {
   Search,
@@ -36,6 +38,7 @@ interface VideoItem {
   narrationStyle: string
   narrationGenre: string
   status: string
+  health?: TaleHealth
   userId: string
   pet: {
     id: string
@@ -294,6 +297,7 @@ export default function AdminVideosPage() {
                 <SelectItem value="all">All Videos</SelectItem>
                 <SelectItem value="public">Public Only</SelectItem>
                 <SelectItem value="private">Private Only</SelectItem>
+                <SelectItem value="attention">⚠️ Needs attention</SelectItem>
               </SelectContent>
             </Select>
 
@@ -477,6 +481,7 @@ export default function AdminVideosPage() {
                                 ✨ {video.narrationGenre}
                               </Badge>
                             )}
+                            <TaleHealthBadge health={video.health} />
                           </div>
 
                           <div className="flex items-center gap-3 text-xs text-gray-500">
@@ -544,6 +549,7 @@ export default function AdminVideosPage() {
                                 ✨ {video.narrationGenre}
                               </Badge>
                             )}
+                            <TaleHealthBadge health={video.health} />
                           </div>
                         </div>
 

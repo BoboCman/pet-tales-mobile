@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { requireAdmin } from "@/lib/api/auth-middleware"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { getTaleHealth } from "@/lib/tale-health"
 import { logAdminAction } from "@/lib/api/audit-logger"
 
 type RouteContext = {
@@ -148,6 +149,8 @@ async function getHandler(request: NextRequest, context: RouteContext) {
           status: video.merged_video_status || video.status || "unknown",
           mergeError: video.merged_video_error || null,
           compressionStatus: video.compression_status || null,
+          health: getTaleHealth(video),
+          mergeDetails: video.merge_details ?? null,
         },
         pet: {
           id: pet?.id || video.pet_id,

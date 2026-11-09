@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server"
 import { requireAdmin } from "@/lib/api/auth-middleware"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { logAdminAction } from "@/lib/api/audit-logger"
+import { getTaleHealth } from "@/lib/tale-health"
 
 /**
  * GET /api/admin/videos
@@ -11,7 +12,7 @@ import { logAdminAction } from "@/lib/api/audit-logger"
  * - page: number (default: 1)
  * - limit: number (default: 20)
  * - search: string (search by title or pet name)
- * - visibility: 'all' | 'public' | 'private' (default: 'all')
+ * - visibility: 'all' | 'public' | 'private' | 'attention' (failed, stuck, or wrong length) (default: 'all')
  * - sortBy: string (default: 'created_at')
  * - sortOrder: 'asc' | 'desc' (default: 'desc')
  * - voice: string (filter by narration style)
@@ -82,7 +83,11 @@ async function handler(request: NextRequest, context: any) {
         pet_type,
         pet_gender,
         pet_age,
-        pet_breed
+        pet_breed,
+        merged_video_status,
+        merged_video_error,
+        merged_processing_started_at,
+        merge_details
       `,
       { count: "exact" },
     )
@@ -92,6 +97,11 @@ async function handler(request: NextRequest, context: any) {
       query = query.eq("is_public", true)
     } else if (visibility === "private") {
       query = query.eq("is_public", false)
+    } else if (visibility === "attention") {
+      const stuckBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString()
+      query = query.or(
+        `merged_video_status.eq.failed,merge_details->>length_ok.eq.false,and(merged_video_status.eq.processing,merged_processing_started_at.lt.${stuckBefore})`,
+      )
     }
 
     // Apply search filter (title only for now)
@@ -193,6 +203,7 @@ async function handler(request: NextRequest, context: any) {
         narrationStyle: video.narration_style || "unknown",
         narrationGenre: video.narration_genre || "unknown",
         status: video.status || "unknown",
+        health: getTaleHealth(video as any),
         userId: video.user_id,
         pet: {
           id: pet?.id || video.pet_id,
