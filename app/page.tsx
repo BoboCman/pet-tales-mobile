@@ -5,6 +5,22 @@ import { getSession } from "@/lib/supabase/server"
 import { HeroVideoPlayer } from "@/components/hero-video-player"
 import { CommunityStrip } from "@/components/landing/community-strip"
 import { NARRATION_GENRES } from "@/lib/narration-genres"
+import { UNIVERSAL_VOICES } from "@/lib/voice-personalities"
+import { VoicesVibesSheet } from "@/components/landing/voices-vibes-sheet"
+
+// Only what the sheet shows (keeps provider voice ids out of the page)
+const SHEET_VOICES = UNIVERSAL_VOICES.map(({ value, emoji, label, description }) => ({
+  value,
+  emoji,
+  label,
+  description,
+}))
+const SHEET_VIBES = NARRATION_GENRES.map(({ value, emoji, label, description }) => ({
+  value,
+  emoji,
+  label,
+  description,
+}))
 
 export const dynamic = "force-dynamic"
 
@@ -132,19 +148,10 @@ export default async function Home() {
                 <div className="min-w-0">
                   <h3 className="font-semibold text-gray-900 dark:text-white">Your pet tells the story</h3>
                   <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
-                    What they were thinking, written to follow the action and narrated in one of 12 voices. Pick a
-                    vibe or keep ours.
+                    What they were thinking, written to follow the action. Pick from 12 voices and 6 vibes, or keep
+                    ours.
                   </p>
-                  <div className="mt-2.5 flex flex-wrap gap-1.5">
-                    {NARRATION_GENRES.map((g) => (
-                      <span
-                        key={g.value}
-                        className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                      >
-                        {g.emoji} {g.label}
-                      </span>
-                    ))}
-                  </div>
+                  <VoicesVibesSheet voices={SHEET_VOICES} vibes={SHEET_VIBES} />
                 </div>
               </li>
               <li className="flex gap-4 rounded-2xl bg-white p-4 shadow-sm dark:bg-gray-900">
@@ -152,9 +159,9 @@ export default async function Home() {
                   3
                 </span>
                 <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white">Post it</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">Share it with everyone</h3>
                   <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
-                    A vertical, captioned video made to share, plus a link that plays anywhere.
+                    Post it to TikTok, Instagram or Facebook, or text it to family and friends. It plays on any phone.
                   </p>
                 </div>
               </li>
@@ -171,8 +178,8 @@ export default async function Home() {
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white">Sounds like them, not a robot</h3>
                 <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-300">
-                  Six quick taps about their energy, attitude and quirks, and every tale is told the way your pet
-                  would tell it.
+                  Six quick taps about their energy, attitude and quirks, and every tale is told the way your pet would
+                  tell it.
                 </p>
               </div>
             </div>
@@ -189,8 +196,8 @@ export default async function Home() {
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white">For pet creators</h3>
                 <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
-                  Skip writing scripts and recording voiceovers. Narrated, captioned posts for Reels, TikTok and
-                  Shorts in minutes.
+                  Skip writing scripts and recording voiceovers. Narrated, captioned posts for Reels, TikTok and Shorts
+                  in minutes.
                 </p>
               </div>
             </div>
@@ -217,7 +224,9 @@ export default async function Home() {
                 <details key={item.q} className="group px-4 py-2 [&_summary::-webkit-details-marker]:hidden">
                   <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-4 font-medium text-gray-900 dark:text-white">
                     {item.q}
-                    <span className="text-xl leading-none text-teal-600 transition-transform group-open:rotate-45">+</span>
+                    <span className="text-xl leading-none text-teal-600 transition-transform group-open:rotate-45">
+                      +
+                    </span>
                   </summary>
                   <p className="pb-2 text-sm text-gray-600 dark:text-gray-400">{item.a}</p>
                 </details>

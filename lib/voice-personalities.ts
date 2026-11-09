@@ -18,7 +18,7 @@ export const UNIVERSAL_VOICES: VoicePersonality[] = [
     value: "british_narrator",
     emoji: "🎩",
     label: "British Narrator",
-    description: "Sophisticated documentary style, like the Geico Gecko - makes any moment sound epic",
+    description: "Posh, sophisticated documentary style - makes any moment sound epic",
     elevenLabsVoiceId: "tstMFrPj38Ce5M7uZCgE",
   },
   {
