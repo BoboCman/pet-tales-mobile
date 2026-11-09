@@ -803,11 +803,53 @@ async function getVttEndSeconds(vttUrl: string | null | undefined): Promise<numb
   }
 }
 
-/** Video length; 10s is only a last resort and just affects how many times the clip loops. */
-async function getVideoDuration(publicId: string): Promise<number> {
-  const duration = await getMediaDuration(publicId)
-  console.log("📏 Video duration:", duration ?? "unknown (using 10s)")
-  return duration ?? 10
+/** Duration from the Admin API's media metadata (ffprobe output), which is there when `duration` isn't. */
+async function getMetadataDuration(publicId: string): Promise<number | null> {
+  try {
+    const resource: any = await cloudinary.api.resource(publicId, { resource_type: "video", media_metadata: true })
+    const candidates = [
+      resource?.duration,
+      resource?.video_metadata?.format?.duration,
+      resource?.media_metadata?.format?.duration,
+      resource?.video_metadata?.streams?.find?.((st: any) => st?.codec_type === "video")?.duration,
+    ]
+    for (const value of candidates) {
+      const seconds = Number(value)
+      if (Number.isFinite(seconds) && seconds > 0) return seconds
+    }
+  } catch (error) {
+    console.warn("⚠️ media_metadata lookup failed for", publicId, describeError(error, "unknown"))
+  }
+  return null
+}
+
+/**
+ * Clip length. Sets how many times the clip loops, so a wrong value either wastes render time
+ * (too many plays, trimmed afterwards) or leaves the clip ending before the narration.
+ * Order: Admin API, media metadata, the length Cloudinary reported when the clip was uploaded
+ * (saved by the compress webhook), then 10s as a last resort.
+ */
+async function getVideoDuration(
+  publicId: string,
+  uploadSeconds?: number | null,
+  details?: Record<string, any>,
+): Promise<number> {
+  const sources: Array<[string, () => Promise<number | null>]> = [
+    ["cloudinary", () => getMediaDuration(publicId)],
+    ["media metadata", () => getMetadataDuration(publicId)],
+    ["upload notification", async () => (uploadSeconds && uploadSeconds > 0 ? uploadSeconds : null)],
+  ]
+  for (const [source, lookup] of sources) {
+    const seconds = await lookup()
+    if (seconds) {
+      console.log("📏 Video duration:", seconds, `(${source})`)
+      if (details) details.clip_seconds_source = source
+      return seconds
+    }
+  }
+  console.log("📏 Video duration: unknown (using 10s)")
+  if (details) details.clip_seconds_source = "guess (10s)"
+  return 10
 }
 
 /**
@@ -1106,7 +1148,7 @@ async function createMergedVideoWithCloudinarySubtitles(
 
     const { data: existingEntry } = await supabaseAdmin
       .from("diary_entries")
-      .select("cloudinary_audio_public_id, caption_status, caption_vtt_url")
+      .select("cloudinary_audio_public_id, caption_status, caption_vtt_url, merge_details")
       .eq("id", entryId)
       .single()
 
@@ -1137,7 +1179,9 @@ async function createMergedVideoWithCloudinarySubtitles(
     // STEP 2: Get video duration and calculate loops
     currentStep = "STEP 2 (video duration)"
     console.log("🔹 STEP 2: Getting video duration and calculating loops...")
-    const videoDuration = await getVideoDuration(videoPublicId)
+    const uploadClipSeconds = Number((existingEntry as any)?.merge_details?.upload_clip_seconds) || null
+    if (uploadClipSeconds) details.upload_clip_seconds = uploadClipSeconds
+    const videoDuration = await getVideoDuration(videoPublicId, uploadClipSeconds, details)
     const loopCount = Math.max(1, Math.ceil(audioDuration / videoDuration))
     // Cloudinary's e_loop:N means N EXTRA plays (max 5), so e_loop:1 doubles the clip.
     // No loop component at all when one play already covers the narration.
