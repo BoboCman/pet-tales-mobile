@@ -44,14 +44,7 @@ export default async function NewReelPage({ searchParams }: NewReelPageProps) {
       </div>
 
       {/* Main Content */}
-      <div className="container max-w-md lg:max-w-6xl mx-auto px-4 py-6">
-        <div className="mb-6 text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-1">
-            {pets.length === 0 ? "Let's make your first tale" : "New tale"}
-          </h2>
-          <p className="text-gray-600 text-sm">Pick a clip. We'll add your pet's voice and captions.</p>
-        </div>
-
+      <div className="container max-w-md mx-auto px-4 py-5">
         <VideoUploadInterface pets={pets} selectedPetId={selectedPetId} />
       </div>
     </div>
