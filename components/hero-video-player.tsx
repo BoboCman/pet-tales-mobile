@@ -33,7 +33,7 @@ export function HeroVideoPlayer({ src, poster, ariaLabel }: HeroVideoPlayerProps
   }
 
   return (
-    <div className="relative aspect-[9/16] max-w-sm mx-auto lg:max-w-md rounded-2xl overflow-hidden shadow-2xl border-4 border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
+    <div className="relative aspect-[9/16] mx-auto w-full overflow-hidden rounded-3xl bg-gray-100 shadow-2xl shadow-teal-900/20 ring-1 ring-black/5 dark:bg-gray-800">
       <video
         ref={videoRef}
         className="absolute inset-0 w-full h-full object-cover object-[62%_center] cursor-pointer"
@@ -56,8 +56,8 @@ export function HeroVideoPlayer({ src, poster, ariaLabel }: HeroVideoPlayerProps
           className="hero-video-play-button absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors cursor-pointer group"
           aria-label="Play video"
         >
-          <div className="w-20 h-20 rounded-full bg-white/90 flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
-            <Play className="w-10 h-10 text-teal-600 ml-1" fill="currentColor" />
+          <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
+            <Play className="w-8 h-8 text-teal-600 ml-1" fill="currentColor" />
           </div>
         </button>
       )}
