@@ -1,170 +1,147 @@
 "use client"
 
-import type React from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Pencil, Video, Film, PawPrint, Sparkles } from "lucide-react"
-import { isPersonalized } from "@/lib/pets/personality"
+import { useState } from "react"
 import Link from "next/link"
-import type { Database } from "@/lib/supabase/database.types"
+import { ChevronRight, Film, MoreHorizontal, Pencil, Plus, Sparkles } from "lucide-react"
+import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
+import { PetAvatar } from "@/components/reels/tale-poster"
+import { isPersonalized, type PersonalityPet } from "@/lib/pets/personality"
 
-type Pet = Database["public"]["Tables"]["pets"]["Row"]
-
-interface PetCardNewProps {
-  pet: Pet
-  linkToDetail?: boolean
+export type PetCardPet = PersonalityPet & {
+  id: string
+  name: string
+  breed?: string | null
+  image_url?: string | null
+  avatar_url?: string | null
+  photo_url?: string | null
 }
 
-// Define the exact personality trait labels used in the PersonalityTraits component
+// Same trait labels as the PersonalityTraits component
 const personalityLabels = {
-  energy: ["Zen Master", "Couch Potato", "Balanced", "Peppy", "Zoomies!"],
-  sociability: ["Lone Wolf", "Selective Socializer", "Friendly", "Party Animal", "Velcro Pet"],
-  confidence: ["Shy Bean", "Cautious Paws", "Steady", "Brave", "Fearless Leader"],
   obedience: ["Free Spirit", "Negotiator", "Tries Their Best", "Rule Follower", "Teacher's Pet"],
   playStyle: ["Chess Master", "Gentle Player", "Playful", "Bouncy", "Wild Child"],
   curiosity: ["Unbothered", "Occasionally Interested", "Inquisitive", "Inspector", "Trouble Finder"],
   territorial: ["Sharing is Caring", "Easy-Going", "Mine Sometimes", "Protector", "Guardian Supreme"],
 }
 
-// Function to get the trait label based on the numeric value (1-5)
-function getTraitLabel(trait: keyof typeof personalityLabels, value: number | null): string | null {
-  if (value === null || value === undefined) return null
-  if (value < 1 || value > 5) return null
-  return personalityLabels[trait][value - 1]
-}
+const label = (trait: keyof typeof personalityLabels, value: number | null | undefined) =>
+  value && value >= 1 && value <= 5 ? personalityLabels[trait][value - 1] : null
 
-export function PetCardNew({ pet, linkToDetail = false }: PetCardNewProps) {
-  const router = useRouter()
-
-  const handleEdit = (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    router.push(`/dashboard/pets/${pet.id}/edit`)
-  }
-
-  // Get personality traits based on pet type
-  const personalityTraits: string[] = []
-
-  if (pet.type?.toLowerCase().includes("cat")) {
-    // For cats: Curiosity and Territorial
-    const curiosityTrait = getTraitLabel("curiosity", pet.personality_curiosity)
-    const territorialTrait = getTraitLabel("territorial", pet.personality_territorial)
-    if (curiosityTrait) personalityTraits.push(curiosityTrait)
-    if (territorialTrait) personalityTraits.push(territorialTrait)
-  } else {
-    // For dogs and other pets: Obedience and Play Style
-    const obedienceTrait = getTraitLabel("obedience", pet.personality_obedience)
-    const playStyleTrait = getTraitLabel("playStyle", pet.personality_play_style)
-    if (obedienceTrait) personalityTraits.push(obedienceTrait)
-    if (playStyleTrait) personalityTraits.push(playStyleTrait)
-  }
-
-  // Create a dot-separated list of traits (using • character)
-  const personalityTraitsText = personalityTraits.join(" • ")
+export function PetCardNew({ pet, taleCount = 0 }: { pet: PetCardPet; taleCount?: number }) {
+  const [menuOpen, setMenuOpen] = useState(false)
   const personalized = isPersonalized(pet)
+  const isCat = pet.type?.toLowerCase().includes("cat")
+  const traits = (
+    isCat
+      ? [label("curiosity", pet.personality_curiosity), label("territorial", pet.personality_territorial)]
+      : [label("obedience", pet.personality_obedience), label("playStyle", pet.personality_play_style)]
+  ).filter(Boolean)
 
-  const cardContent = (
-    <Card className="overflow-hidden h-full transition-all duration-200 hover:shadow-md">
-      <CardContent className="p-5 space-y-4">
-        <div className="flex items-start gap-4">
-          <Avatar className="h-16 w-16 border">
-            <AvatarImage src={pet.image_url || undefined} alt={pet.name} />
-            <AvatarFallback className="bg-green-100 text-green-600">
-              <PawPrint className="h-8 w-8" />
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex flex-col">
-            <h3 className="text-lg font-bold">{pet.name}</h3>
-            <p className="text-sm text-muted-foreground">{pet.breed || "Unknown breed"}</p>
-            {/* Personality traits as dot-separated list */}
-            {personalized && personalityTraitsText && (
-              <div className="mt-1">
-                <p className="text-xs text-teal-600 font-medium">{personalityTraitsText}</p>
-              </div>
-            )}
-          </div>
-        </div>
-        {/* Personality drives the narration voice, so it gets a clear spot instead of hiding behind "Edit" */}
-        {personalized ? (
-          <Link
-            href={`/dashboard/pets/${pet.id}/personality?next=/dashboard/pets`}
-            onClick={(e) => e.stopPropagation()}
-            className="flex items-center justify-between rounded-xl bg-teal-50 border border-teal-100 px-3 py-2 min-h-[44px]"
-          >
-            <span className="flex items-center gap-2 text-sm text-teal-800">
-              <Sparkles className="h-4 w-4 text-teal-600" />
-              Voice tuned to {pet.name}
+  const image =
+    [pet.image_url, pet.avatar_url, pet.photo_url].find(
+      (u) => typeof u === "string" && u.startsWith("http"),
+    ) ?? null
+  const kind = pet.breed || (pet.type ? pet.type.charAt(0).toUpperCase() + pet.type.slice(1) : "Pet")
+  const personalityHref = `/dashboard/pets/${pet.id}/personality?next=/dashboard/pets`
+
+  return (
+    <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+      <div className="flex items-center gap-3">
+        <Link href={`/dashboard/pets/${pet.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+          <PetAvatar name={pet.name} image={image} className="h-14 w-14 text-xl" />
+          <span className="min-w-0">
+            <span className="block truncate text-base font-semibold text-gray-900 dark:text-white">{pet.name}</span>
+            <span className="block truncate text-sm text-gray-500">
+              {taleCount > 0 && `${taleCount} ${taleCount === 1 ? "tale" : "tales"} · `}
+              {kind}
             </span>
-            <span className="text-sm font-medium text-teal-700">Adjust</span>
-          </Link>
-        ) : (
-          <Link
-            href={`/dashboard/pets/${pet.id}/personality?next=/dashboard/pets`}
-            onClick={(e) => e.stopPropagation()}
-            className="block rounded-xl bg-gradient-to-r from-amber-50 to-teal-50 border border-amber-200 px-4 py-3"
-          >
-            <p className="font-semibold text-gray-900 flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-amber-500" />
-              Make tales sound like {pet.name}
-            </p>
-            <p className="text-sm text-gray-600 mt-0.5">6 quick taps. Tell us who {pet.name} really is.</p>
-            <span className="mt-2 inline-flex items-center text-sm font-semibold text-teal-700">
-              Tell us about {pet.name} →
-            </span>
-          </Link>
-        )}
-
-        <div className="flex gap-2">
-          <Button size="sm" className="flex-1 h-11 bg-teal-600 hover:bg-teal-700 text-white" asChild>
-            <Link href={`/dashboard/reels/new?pet=${pet.id}`} onClick={(e) => e.stopPropagation()}>
-              <Video className="mr-2 h-4 w-4" />
-              New Tale
-            </Link>
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="flex-1 h-11 bg-white hover:bg-teal-50 text-teal-700 border border-teal-200"
-            asChild
-          >
-            <Link href={`/dashboard/reels?pet=${pet.id}`} onClick={(e) => e.stopPropagation()}>
-              <Film className="mr-2 h-4 w-4 text-teal-600" />
-              Tales
-            </Link>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-11 w-11 p-0 text-gray-500"
-            onClick={handleEdit}
-            aria-label={`Edit ${pet.name}'s name, photo and breed`}
-          >
-            <Pencil className="h-4 w-4" />
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  )
-
-  if (linkToDetail) {
-    return (
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => router.push(`/dashboard/pets/${pet.id}`)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            router.push(`/dashboard/pets/${pet.id}`)
-          }
-        }}
-        className="block h-full cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-600"
-      >
-        {cardContent}
+          </span>
+        </Link>
+        <Link
+          href={`/dashboard/reels/new?pet=${pet.id}`}
+          aria-label={`New tale with ${pet.name}`}
+          className="inline-flex h-9 shrink-0 items-center gap-1 rounded-full bg-teal-50 px-3.5 text-sm font-semibold text-teal-700 active:bg-teal-100 dark:bg-teal-900/30 dark:text-teal-300"
+        >
+          <Plus className="h-4 w-4" strokeWidth={2.5} />
+          Tale
+        </Link>
+        <button
+          type="button"
+          onClick={() => setMenuOpen(true)}
+          aria-label={`More options for ${pet.name}`}
+          className="flex h-10 w-8 shrink-0 items-center justify-center rounded-full text-gray-400 active:bg-gray-100 dark:active:bg-gray-800"
+        >
+          <MoreHorizontal className="h-5 w-5" />
+        </button>
       </div>
-    )
-  }
 
-  return cardContent
+      {/* Personality drives the narration, so it keeps a visible, one-line spot */}
+      <Link
+        href={personalityHref}
+        className={
+          personalized
+            ? "mt-3 flex min-h-11 items-center gap-2.5 rounded-xl bg-teal-50 px-3 py-2 active:bg-teal-100 dark:bg-teal-900/20"
+            : "mt-3 flex min-h-11 items-center gap-2.5 rounded-xl bg-amber-50 px-3 py-2 active:bg-amber-100 dark:bg-amber-900/20"
+        }
+      >
+        <Sparkles className={personalized ? "h-4 w-4 shrink-0 text-teal-600" : "h-4 w-4 shrink-0 text-amber-500"} />
+        <span className="min-w-0 flex-1">
+          {personalized ? (
+            <span className="block truncate text-sm text-teal-900 dark:text-teal-100">
+              {traits.length ? traits.join(" · ") : `Voice tuned to ${pet.name}`}
+            </span>
+          ) : (
+            <>
+              <span className="block truncate text-sm font-semibold text-gray-900 dark:text-white">
+                Make tales sound like {pet.name}
+              </span>
+              <span className="block text-xs text-gray-600 dark:text-gray-400">6 quick taps</span>
+            </>
+          )}
+        </span>
+        {personalized ? (
+          <span className="shrink-0 text-sm font-medium text-teal-700 dark:text-teal-400">Adjust</span>
+        ) : (
+          <ChevronRight className="h-4 w-4 shrink-0 text-amber-600" />
+        )}
+      </Link>
+
+      <Drawer open={menuOpen} onOpenChange={setMenuOpen} shouldScaleBackground={false}>
+        <DrawerContent>
+          <DrawerHeader className="text-left">
+            <DrawerTitle>{pet.name}</DrawerTitle>
+            <DrawerDescription>
+              {kind}
+              {taleCount > 0 ? ` · ${taleCount} ${taleCount === 1 ? "tale" : "tales"}` : " · No tales yet"}
+            </DrawerDescription>
+          </DrawerHeader>
+          <div className="space-y-2 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            {taleCount > 0 && (
+              <Link
+                href={`/dashboard/reels?pet=${pet.id}`}
+                className="flex h-12 items-center gap-3 rounded-xl bg-gray-50 px-4 font-medium text-gray-900 active:bg-gray-100 dark:bg-gray-800 dark:text-white"
+              >
+                <Film className="h-5 w-5 text-teal-600" />
+                See {pet.name}&apos;s tales
+              </Link>
+            )}
+            <Link
+              href={personalityHref}
+              className="flex h-12 items-center gap-3 rounded-xl bg-gray-50 px-4 font-medium text-gray-900 active:bg-gray-100 dark:bg-gray-800 dark:text-white"
+            >
+              <Sparkles className="h-5 w-5 text-teal-600" />
+              {personalized ? `Adjust ${pet.name}'s personality` : `Tell us about ${pet.name}`}
+            </Link>
+            <Link
+              href={`/dashboard/pets/${pet.id}/edit`}
+              className="flex h-12 items-center gap-3 rounded-xl bg-gray-50 px-4 font-medium text-gray-900 active:bg-gray-100 dark:bg-gray-800 dark:text-white"
+            >
+              <Pencil className="h-5 w-5 text-teal-600" />
+              Edit name, photo and breed
+            </Link>
+          </div>
+        </DrawerContent>
+      </Drawer>
+    </div>
+  )
 }
