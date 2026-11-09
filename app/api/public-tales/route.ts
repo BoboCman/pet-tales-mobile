@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic"
 export async function GET() {
   try {
     console.log("API: Fetching public tales...")
-    const tales = await getPublicTales()
+    const tales = await getPublicTales(60)
     console.log("API: Found tales:", tales.length)
     console.log(
       "API: First tale:",
