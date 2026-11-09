@@ -1230,12 +1230,39 @@ async function createMergedVideoWithCloudinarySubtitles(
       )
 
       currentStep = "STEP 6 (final merge from pre-trimmed source, fallback)"
-      const trimmedSourceUrl = cloudinary.url(videoPublicId, {
+      // Copy the small 720p clip into its own asset first, then let a delivery URL loop, trim and
+      // mute it. Building that URL on the stored original instead (the raw upload, often 50MB+)
+      // fails on the Free plan with "too large to process synchronously". The copy is
+      // pawsense/intermediate/..., which cleanupTemporaryAssets deletes after the merge.
+      const intermediateId = `pawsense/intermediate/entry_${entryId}_looped`
+      let trimBaseId = videoPublicId
+      let trimBaseIsCopy = false
+      if (optimizedVideoUrl) {
+        try {
+          await cloudinaryWithRetry(
+            () =>
+              cloudinary.uploader.upload(optimizedVideoUrl, {
+                resource_type: "video",
+                public_id: intermediateId,
+                overwrite: true,
+                type: "upload",
+                timeout: 300000,
+              }),
+            "Copy 720p clip for fallback (STEP 6)",
+          )
+          trimBaseId = intermediateId
+          trimBaseIsCopy = true
+        } catch (copyError) {
+          console.warn("⚠️ Could not copy the 720p clip; trimming the original instead:", copyError)
+        }
+      }
+      const trimmedSourceUrl = cloudinary.url(trimBaseId, {
         resource_type: "video",
         format: "mp4",
         transformation: [
-          // Same as the compress step's eager derivative, so that part is already cached
-          { width: 720, crop: "scale", video_codec: "h264", audio_codec: "aac" },
+          // The copy is already 720p h264; the original still needs scaling (same as the compress
+          // step's eager derivative, so that part is cached)
+          ...(trimBaseIsCopy ? [] : [{ width: 720, crop: "scale", video_codec: "h264", audio_codec: "aac" }]),
           ...loopComponents,
           { end_offset: audioDuration },
           // Remove original audio
