@@ -6,12 +6,11 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase/client"
 import { Eye, EyeOff } from "lucide-react"
 
-export function ChangePasswordForm() {
+export function ChangePasswordForm({ onDone }: { onDone?: () => void } = {}) {
   const [loading, setLoading] = useState(false)
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
@@ -78,6 +77,7 @@ export function ChangePasswordForm() {
       setCurrentPassword("")
       setNewPassword("")
       setConfirmPassword("")
+      onDone?.()
     } catch (error: any) {
       toast({
         title: "Error updating password",
@@ -90,96 +90,84 @@ export function ChangePasswordForm() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <span className="text-xl">🔒</span>
-          <CardTitle>Change Password</CardTitle>
+    <form onSubmit={handleChangePassword} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="current-password">Current password</Label>
+        <div className="relative">
+          <Input
+            id="current-password"
+            type={showCurrentPassword ? "text" : "password"}
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            required
+            placeholder="Enter current password"
+            className="h-12 rounded-xl pr-12 text-base"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent min-w-[44px]"
+            onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+            aria-label={showCurrentPassword ? "Hide password" : "Show password"}
+          >
+            {showCurrentPassword ? (
+              <EyeOff className="h-4 w-4 text-gray-400" />
+            ) : (
+              <Eye className="h-4 w-4 text-gray-400" />
+            )}
+          </Button>
         </div>
-        <CardDescription>Update your password</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleChangePassword} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="current-password">Current Password</Label>
-            <div className="relative">
-              <Input
-                id="current-password"
-                type={showCurrentPassword ? "text" : "password"}
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                required
-                placeholder="Enter current password"
-                className="pr-10"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent min-w-[44px]"
-                onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                aria-label={showCurrentPassword ? "Hide password" : "Show password"}
-              >
-                {showCurrentPassword ? (
-                  <EyeOff className="h-4 w-4 text-gray-400" />
-                ) : (
-                  <Eye className="h-4 w-4 text-gray-400" />
-                )}
-              </Button>
-            </div>
-          </div>
+      </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="new-password">New Password</Label>
-            <div className="relative">
-              <Input
-                id="new-password"
-                type={showNewPassword ? "text" : "password"}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                placeholder="Enter new password"
-                minLength={8}
-                className="pr-10"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent min-w-[44px]"
-                onClick={() => setShowNewPassword(!showNewPassword)}
-                aria-label={showNewPassword ? "Hide password" : "Show password"}
-              >
-                {showNewPassword ? (
-                  <EyeOff className="h-4 w-4 text-gray-400" />
-                ) : (
-                  <Eye className="h-4 w-4 text-gray-400" />
-                )}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">Min. 8 characters</p>
-          </div>
+      <div className="space-y-2">
+        <Label htmlFor="new-password">New password</Label>
+        <div className="relative">
+          <Input
+            id="new-password"
+            type={showNewPassword ? "text" : "password"}
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            required
+            placeholder="Enter new password"
+            minLength={8}
+            className="h-12 rounded-xl pr-12 text-base"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent min-w-[44px]"
+            onClick={() => setShowNewPassword(!showNewPassword)}
+            aria-label={showNewPassword ? "Hide password" : "Show password"}
+          >
+            {showNewPassword ? <EyeOff className="h-4 w-4 text-gray-400" /> : <Eye className="h-4 w-4 text-gray-400" />}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">Min. 8 characters</p>
+      </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="confirm-password">Confirm Password</Label>
-            <Input
-              id="confirm-password"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              placeholder="Confirm new password"
-              minLength={8}
-            />
-          </div>
+      <div className="space-y-2">
+        <Label htmlFor="confirm-password">Confirm new password</Label>
+        <Input
+          id="confirm-password"
+          type="password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          required
+          placeholder="Confirm new password"
+          className="h-12 rounded-xl text-base"
+          minLength={8}
+        />
+      </div>
 
-          <div className="flex items-center justify-end pt-4">
-            <Button type="submit" disabled={loading} className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700">
-              {loading ? "Updating..." : "Update Password"}
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+      <Button
+        type="submit"
+        disabled={loading}
+        className="h-12 w-full rounded-xl bg-teal-600 text-base font-semibold hover:bg-teal-700"
+      >
+        {loading ? "Updating…" : "Update password"}
+      </Button>
+    </form>
   )
 }
