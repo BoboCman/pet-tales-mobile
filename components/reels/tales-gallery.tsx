@@ -41,10 +41,20 @@ const ago = (iso: string) => {
   }
 }
 
-export function TalesGallery({ tales, inProgress }: { tales: GalleryTale[]; inProgress: TaleInProgress[] }) {
+export function TalesGallery({
+  tales,
+  inProgress,
+  initialPet,
+}: {
+  tales: GalleryTale[]
+  inProgress: TaleInProgress[]
+  initialPet?: string
+}) {
   const router = useRouter()
   const { toast } = useToast()
-  const [petFilter, setPetFilter] = useState<string>("all")
+  const [petFilter, setPetFilter] = useState<string>(() =>
+    initialPet && tales.some((t) => t.petId === initialPet) ? initialPet : "all",
+  )
   const [menuTale, setMenuTale] = useState<GalleryTale | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)

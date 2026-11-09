@@ -29,7 +29,7 @@ function toGalleryTale(e: any): GalleryTale {
   }
 }
 
-export default async function ReelsPage() {
+export default async function ReelsPage({ searchParams }: { searchParams?: { pet?: string } }) {
   const [result, inProgress] = await Promise.all([getDiaryEntries(), getTalesInProgress()])
 
   if (!result.success) {
@@ -65,7 +65,7 @@ export default async function ReelsPage() {
 
   return (
     <div className="mx-auto min-h-screen max-w-4xl bg-white dark:bg-gray-950">
-      <TalesGallery tales={tales} inProgress={inProgress} />
+      <TalesGallery tales={tales} inProgress={inProgress} initialPet={searchParams?.pet} />
     </div>
   )
 }
