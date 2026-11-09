@@ -23,6 +23,7 @@ export function DeleteAccountDialog({
   triggerLabel,
   confirmLabel,
   onConfirm,
+  trigger,
 }: {
   title: string
   description: React.ReactNode
@@ -30,6 +31,8 @@ export function DeleteAccountDialog({
   confirmLabel: string
   /** Returns an error message, or null on success */
   onConfirm: () => Promise<string | null>
+  /** Custom trigger element; defaults to a red button */
+  trigger?: React.ReactElement
 }) {
   const [open, setOpen] = useState(false)
   const [typed, setTyped] = useState("")
@@ -58,10 +61,12 @@ export function DeleteAccountDialog({
       }}
     >
       <AlertDialogTrigger asChild>
-        <Button variant="destructive" size="sm" className="w-full sm:w-auto sm:min-w-[140px]">
-          <Trash2 className="h-4 w-4 mr-2" />
-          {triggerLabel}
-        </Button>
+        {trigger ?? (
+          <Button variant="destructive" size="sm" className="w-full sm:w-auto sm:min-w-[140px]">
+            <Trash2 className="h-4 w-4 mr-2" />
+            {triggerLabel}
+          </Button>
+        )}
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
