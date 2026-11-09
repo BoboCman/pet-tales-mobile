@@ -1134,9 +1134,23 @@ async function trimStoredVideo(publicId: string, seconds: number) {
 async function saveMergeDetails(entryId: string, details: Record<string, any> | undefined) {
   if (!details) return
   try {
+    // Keep the last few runs (Redo, retries) so a bad run is not hidden by the one after it
+    const { data: row } = await supabaseAdmin.from("diary_entries").select("merge_details").eq("id", entryId).single()
+    const prior = (row as any)?.merge_details
+    const previousRuns: any[] = Array.isArray(prior?.previous_runs) ? prior.previous_runs : []
+    if (prior?.started_at) {
+      const { previous_runs: _ignored, ...lastRun } = prior
+      previousRuns.unshift(lastRun)
+    }
     const { error } = await supabaseAdmin
       .from("diary_entries")
-      .update({ merge_details: { ...details, finished_at: new Date().toISOString() } })
+      .update({
+        merge_details: {
+          ...details,
+          finished_at: new Date().toISOString(),
+          ...(previousRuns.length ? { previous_runs: previousRuns.slice(0, 4) } : {}),
+        },
+      })
       .eq("id", entryId)
     if (error) console.warn("⚠️ Could not save merge_details (non-fatal):", error.message)
   } catch (error) {
