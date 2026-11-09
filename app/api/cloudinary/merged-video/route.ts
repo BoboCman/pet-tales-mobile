@@ -1194,8 +1194,9 @@ async function createMergedVideoWithCloudinarySubtitles(
     // after the narration ended).
     const singlePassTransformations: any[] = [
       ...loopComponents,
-      { end_offset: audioDuration },
-      { effect: "volume:mute" },
+      // Trim and mute in one component. A trim-only component at the very start of the chain
+      // (no loop before it) has come back ignored: 68-91s clips stayed full length.
+      { end_offset: audioDuration, effect: "volume:mute" },
       ...transformations,
     ]
 
@@ -1263,49 +1264,66 @@ async function createMergedVideoWithCloudinarySubtitles(
           }
         }
 
-        const chain: any[] = [
-          // The original still needs scaling to 720p; the copy already is
-          ...(baseIsCopy ? [] : [{ width: 720, crop: "scale", video_codec: "h264", audio_codec: "aac" }]),
-          ...loopComponents,
-          { end_offset: audioDuration },
-          { effect: "volume:mute" },
-          ...transformations,
-        ]
-        const explicitResult: any = await cloudinaryWithRetry(
-          () =>
-            cloudinary.uploader.explicit(baseId, {
-              type: "upload",
-              resource_type: "video",
-              eager: [{ transformation: chain, format: "mp4" }],
-              eager_async: true,
-            }),
-          "Async render (STEP 6 fallback)",
-        )
-        const eagerUrl: string | undefined = explicitResult?.eager?.[0]?.secure_url
-        if (!eagerUrl) throw new Error("Cloudinary did not return a URL for the async render")
-        console.log("📤 Async render started, waiting for:", eagerUrl.substring(0, 160))
+        // One async render of the whole chain from baseId, stored as the final asset (plain
+        // upload, so `duration` is the real length of what viewers get)
+        const renderOnce = async (trimComponents: any[], label: string) => {
+          const chain: any[] = [
+            // The original still needs scaling to 720p; the copy already is
+            ...(baseIsCopy ? [] : [{ width: 720, crop: "scale", video_codec: "h264", audio_codec: "aac" }]),
+            ...trimComponents,
+            ...transformations,
+          ]
+          const explicitResult: any = await cloudinaryWithRetry(
+            () =>
+              cloudinary.uploader.explicit(baseId, {
+                type: "upload",
+                resource_type: "video",
+                eager: [{ transformation: chain, format: "mp4" }],
+                eager_async: true,
+              }),
+            `Async render (${label})`,
+          )
+          const eagerUrl: string | undefined = explicitResult?.eager?.[0]?.secure_url
+          if (!eagerUrl) throw new Error("Cloudinary did not return a URL for the async render")
+          console.log(`📤 Async render started (${label}), waiting for:`, eagerUrl.substring(0, 160))
 
-        const ready = await waitForDerivedVideo(baseId, eagerUrl, 180000, 4000)
-        if (!ready.success) throw new Error(ready.error || "Async render did not finish")
+          const ready = await waitForDerivedVideo(baseId, eagerUrl, 110000, 4000)
+          if (!ready.success) throw new Error(ready.error || "Async render did not finish")
 
-        const stored: any = await cloudinaryWithRetry(
-          () =>
-            cloudinary.uploader.upload(eagerUrl, {
-              resource_type: "video",
-              public_id: finalPublicId,
-              overwrite: true,
-              type: "upload",
-              timeout: 300000,
-            }),
-          "Store final video (STEP 6 fallback)",
+          const stored: any = await cloudinaryWithRetry(
+            () =>
+              cloudinary.uploader.upload(eagerUrl, {
+                resource_type: "video",
+                public_id: finalPublicId,
+                overwrite: true,
+                type: "upload",
+                timeout: 300000,
+              }),
+            `Store final video (${label})`,
+          )
+          console.log(`  - ${label}: ${stored.duration}s for a ${audioDuration}s narration`)
+          return {
+            success: true,
+            public_id: stored.public_id,
+            secure_url: stored.secure_url,
+            duration: stored.duration,
+            bytes: stored.bytes,
+            hasAudio: stored.audio ? Boolean(stored.audio.codec) : undefined,
+          }
+        }
+
+        finalResult = await renderOnce(
+          [...loopComponents, { end_offset: audioDuration, effect: "volume:mute" }],
+          "STEP 6 fallback",
         )
-        finalResult = {
-          success: true,
-          public_id: stored.public_id,
-          secure_url: stored.secure_url,
-          duration: stored.duration,
-          bytes: stored.bytes,
-          hasAudio: stored.audio ? Boolean(stored.audio.codec) : undefined,
+        if (isTooLong(finalResult.duration)) {
+          // The trim is only known to be honoured right after a loop (the short-clip path that has
+          // always worked). Force one extra play, then trim; only the trimmed length is output.
+          console.warn("⚠️ Fallback render still untrimmed; retrying with loop + trim")
+          finalResult = await renderOnce(
+            [{ effect: "loop:1" }, { end_offset: audioDuration }, { effect: "volume:mute" }],
+            "STEP 6 fallback, loop + trim",
+          )
         }
       } catch (fallbackError) {
         throw new Error(`${describeError(fallbackError, "fallback render failed")} (first try: ${firstTry})`)
