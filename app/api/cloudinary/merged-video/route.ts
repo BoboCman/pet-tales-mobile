@@ -1222,70 +1222,93 @@ async function createMergedVideoWithCloudinarySubtitles(
         )
       }
     } catch (singlePassError) {
-      // Fallback: let Cloudinary's delivery URL do the loop, trim and mute (a plain derived video),
-      // then add narration and subtitles on upload. Still 720p, so still billed at the SD rate.
+      // Fallback: render the same chain as an eager_async derivative (see below). Still 720p.
       console.warn(
-        "⚠️ Single-pass render failed, falling back to pre-trimmed source:",
+        "⚠️ Single-pass render failed, falling back to an async render:",
         describeError(singlePassError, "single-pass render failed"),
       )
 
-      currentStep = "STEP 6 (final merge from pre-trimmed source, fallback)"
-      // Copy the small 720p clip into its own asset first, then let a delivery URL loop, trim and
-      // mute it. Building that URL on the stored original instead (the raw upload, often 50MB+)
-      // fails on the Free plan with "too large to process synchronously". The copy is
-      // pawsense/intermediate/..., which cleanupTemporaryAssets deletes after the merge.
-      const intermediateId = `pawsense/intermediate/entry_${entryId}_looped`
-      let trimBaseId = videoPublicId
-      let trimBaseIsCopy = false
-      if (optimizedVideoUrl) {
-        try {
-          await cloudinaryWithRetry(
-            () =>
-              cloudinary.uploader.upload(optimizedVideoUrl, {
-                resource_type: "video",
-                public_id: intermediateId,
-                overwrite: true,
-                type: "upload",
-                timeout: 300000,
-              }),
-            "Copy 720p clip for fallback (STEP 6)",
-          )
-          trimBaseId = intermediateId
-          trimBaseIsCopy = true
-        } catch (copyError) {
-          console.warn("⚠️ Could not copy the 720p clip; trimming the original instead:", copyError)
-        }
-      }
-      const trimmedSourceUrl = cloudinary.url(trimBaseId, {
-        resource_type: "video",
-        format: "mp4",
-        transformation: [
-          // The copy is already 720p h264; the original still needs scaling (same as the compress
-          // step's eager derivative, so that part is cached)
-          ...(trimBaseIsCopy ? [] : [{ width: 720, crop: "scale", video_codec: "h264", audio_codec: "aac" }]),
-          ...loopComponents,
-          { end_offset: audioDuration },
-          // Remove original audio
-          { audio_codec: "none" },
-        ],
-      })
-      console.log("🔗 Pre-trimmed source URL:", trimmedSourceUrl.substring(0, 160) + "...")
-
-      // Keep the first error too: the fallback renders from the stored original, so for a large
-      // upload its own error ("too large") hides the reason the normal path failed.
+      currentStep = "STEP 6 (final merge, async fallback)"
+      // Why the old fallbacks failed on long phone clips (Free plan, 40MB processing limit):
+      // - the single-pass upload applies the chain as an incoming transformation, and for these
+      //   clips Cloudinary stored it untrimmed (68s or 91s video under a ~30s narration);
+      // - a delivery URL with the loop/trim (on the raw upload, or on a copy of the 720p clip,
+      //   which for a 60-90s clip can itself be over 40MB) is refused as "too large to process
+      //   synchronously".
+      // An eager_async derivative has no such limit, so: copy the 720p clip into its own asset
+      // (a plain upload, no processing), render the whole chain as an eager_async derivative of
+      // that copy, wait for it, then store the result as the final asset (another plain upload).
       const firstTry = describeError(singlePassError, "single-pass render failed")
       try {
-        finalResult = await uploadWithEagerAsync(
-          trimmedSourceUrl,
-          finalPublicId,
-          transformations,
-          "Final Video Transformation (STEP 6, fallback)",
+        const intermediateId = `pawsense/intermediate/entry_${entryId}_looped`
+        let baseId = videoPublicId
+        let baseIsCopy = false
+        if (optimizedVideoUrl) {
+          try {
+            await cloudinaryWithRetry(
+              () =>
+                cloudinary.uploader.upload(optimizedVideoUrl, {
+                  resource_type: "video",
+                  public_id: intermediateId,
+                  overwrite: true,
+                  type: "upload",
+                  timeout: 300000,
+                }),
+              "Copy 720p clip (STEP 6 fallback)",
+            )
+            baseId = intermediateId
+            baseIsCopy = true
+          } catch (copyError) {
+            console.warn("⚠️ Could not copy the 720p clip; rendering from the original:", copyError)
+          }
+        }
+
+        const chain: any[] = [
+          // The original still needs scaling to 720p; the copy already is
+          ...(baseIsCopy ? [] : [{ width: 720, crop: "scale", video_codec: "h264", audio_codec: "aac" }]),
+          ...loopComponents,
+          { end_offset: audioDuration },
+          { effect: "volume:mute" },
+          ...transformations,
+        ]
+        const explicitResult: any = await cloudinaryWithRetry(
+          () =>
+            cloudinary.uploader.explicit(baseId, {
+              type: "upload",
+              resource_type: "video",
+              eager: [{ transformation: chain, format: "mp4" }],
+              eager_async: true,
+            }),
+          "Async render (STEP 6 fallback)",
         )
+        const eagerUrl: string | undefined = explicitResult?.eager?.[0]?.secure_url
+        if (!eagerUrl) throw new Error("Cloudinary did not return a URL for the async render")
+        console.log("📤 Async render started, waiting for:", eagerUrl.substring(0, 160))
+
+        const ready = await waitForDerivedVideo(baseId, eagerUrl, 180000, 4000)
+        if (!ready.success) throw new Error(ready.error || "Async render did not finish")
+
+        const stored: any = await cloudinaryWithRetry(
+          () =>
+            cloudinary.uploader.upload(eagerUrl, {
+              resource_type: "video",
+              public_id: finalPublicId,
+              overwrite: true,
+              type: "upload",
+              timeout: 300000,
+            }),
+          "Store final video (STEP 6 fallback)",
+        )
+        finalResult = {
+          success: true,
+          public_id: stored.public_id,
+          secure_url: stored.secure_url,
+          duration: stored.duration,
+          bytes: stored.bytes,
+          hasAudio: stored.audio ? Boolean(stored.audio.codec) : undefined,
+        }
       } catch (fallbackError) {
         throw new Error(`${describeError(fallbackError, "fallback render failed")} (first try: ${firstTry})`)
-      }
-      if (!finalResult.success) {
-        throw new Error(`STEP 6 failed: ${finalResult.error} (first try: ${firstTry})`)
       }
       if (isTooLong(finalResult.duration)) {
         console.warn(
