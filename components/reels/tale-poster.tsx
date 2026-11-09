@@ -4,10 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 
 /** Poster URL saved by the merge step (or PosterBackfill) for a finished tale */
-export function talePosterUrl(id: string) {
-  const base = process.env.NEXT_PUBLIC_SUPABASE_URL
-  return base ? `${base}/storage/v1/object/public/videos/thumbnails/pet-tale-${id}.jpg` : null
-}
+export { talePosterUrl } from "@/lib/tale-poster-url"
 
 // Soft gradients for tales with no poster yet, picked per pet so the grid stays varied
 const FALLBACK_GRADIENTS = [

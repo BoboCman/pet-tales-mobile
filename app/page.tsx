@@ -1,38 +1,68 @@
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
+import { Clapperboard, Heart, PawPrint, Sparkles } from "lucide-react"
 import { PublicFooter } from "@/components/public-footer"
-import { PawPrint } from "lucide-react"
 import { getSession } from "@/lib/supabase/server"
 import { HeroVideoPlayer } from "@/components/hero-video-player"
-import { HeroActionButtons } from "@/components/hero-action-buttons"
+import { CommunityStrip } from "@/components/landing/community-strip"
+import { NARRATION_GENRES } from "@/lib/narration-genres"
 
 export const dynamic = "force-dynamic"
 
+const FAQ = [
+  {
+    q: "Is the first tale really free?",
+    a: "Yes. Sign up with your email and your first tale is on us. No credit card needed.",
+  },
+  {
+    q: "What clips work best?",
+    a: "Vertical clips under a minute, up to 75MB. Most phone videos of 15 to 45 seconds are perfect.",
+  },
+  {
+    q: "Who can see my tales?",
+    a: "You decide for each tale: keep it to yourself, send the link to family, or post it to Community.",
+  },
+  {
+    q: "What does it cost after that?",
+    a: "Plans start at $4.99 a month for 10 tales. Cancel anytime in Settings.",
+  },
+]
+
 export default async function Home() {
   const session = await getSession()
+  const ctaHref = session ? "/dashboard/reels/new" : "/auth/signup?ref=landing"
+  const ctaLabel = session ? "Make a tale" : "Make your first tale free"
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
-      {/* Mobile-optimized header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:hidden">
-        <div className="container flex h-14 items-center justify-between px-4">
+    <div className="flex min-h-screen flex-col bg-white dark:bg-gray-950">
+      {/* Mobile header */}
+      <header className="sticky top-0 z-50 w-full border-b border-gray-100 bg-white/90 backdrop-blur md:hidden dark:border-gray-800 dark:bg-gray-950/90">
+        <div className="flex h-14 items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2">
             <PawPrint className="h-6 w-6 text-teal-600" />
-            <span className="text-xl font-bold text-teal-600">Pet Tale</span>
+            <span className="text-lg font-bold text-gray-900 dark:text-white">Pet Tale</span>
           </Link>
-          <nav className="flex gap-2">
+          <nav className="flex items-center gap-1">
             {session ? (
-              <Button asChild size="sm" className="bg-teal-600 hover:bg-teal-700">
-                <Link href="/dashboard/reels/new">Make a Tale</Link>
-              </Button>
+              <Link
+                href="/dashboard/reels/new"
+                className="inline-flex h-9 items-center rounded-full bg-teal-600 px-4 text-sm font-semibold text-white"
+              >
+                Make a tale
+              </Link>
             ) : (
               <>
-                <Button asChild variant="ghost" size="sm">
-                  <Link href="/auth/login">Sign In</Link>
-                </Button>
-                <Button asChild size="sm" className="bg-teal-600 hover:bg-teal-700">
-                  <Link href="/auth/signup">Try Free</Link>
-                </Button>
+                <Link
+                  href="/auth/login"
+                  className="inline-flex h-9 items-center px-3 text-sm font-medium text-gray-700 dark:text-gray-200"
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href="/auth/signup?ref=landing_header"
+                  className="inline-flex h-9 items-center rounded-full bg-teal-600 px-4 text-sm font-semibold text-white"
+                >
+                  Try free
+                </Link>
               </>
             )}
           </nav>
@@ -40,125 +70,156 @@ export default async function Home() {
       </header>
 
       <main className="flex-1">
-        {/* Hero: one promise, one button */}
-        <section className="relative px-4 pt-10 pb-12 md:py-20 bg-gradient-to-b from-white to-teal-50/40 dark:from-gray-950 dark:to-teal-950/10">
-          <div className="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
-            <div className="space-y-6 text-center lg:text-left">
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-tight text-gray-900 dark:text-white">
-                Your pet, finally talking.
+        {/* Hero: one promise, one button, the proof right under it */}
+        <section className="bg-gradient-to-b from-teal-50/60 to-white px-4 pb-6 pt-8 md:py-20 dark:from-teal-950/20 dark:to-gray-950">
+          <div className="mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-8 lg:grid-cols-2 lg:gap-16">
+            <div className="text-center lg:text-left">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-teal-700 shadow-sm ring-1 ring-teal-100 dark:bg-gray-900 dark:text-teal-300 dark:ring-teal-900">
+                <Sparkles className="h-3.5 w-3.5" />
+                First tale free · no card needed
+              </span>
+              <h1 className="mt-4 text-4xl font-bold leading-[1.1] tracking-tight text-gray-900 sm:text-5xl lg:text-6xl dark:text-white">
+                What was your pet thinking?
               </h1>
-              <p className="text-lg sm:text-xl text-gray-600 dark:text-gray-400 max-w-xl mx-auto lg:mx-0">
-                Upload a clip. In about 3 minutes you get it back narrated in your pet's voice, with captions burned
-                in. Ready for Reels, TikTok, or the family group chat.
+              <p className="mx-auto mt-4 max-w-md text-lg text-gray-600 lg:mx-0 dark:text-gray-400">
+                Pet Tale watches your clip and turns every moment into your pet&apos;s own story, narrated and
+                captioned, ready to post in minutes.
               </p>
-
-              <HeroActionButtons isLoggedIn={!!session} />
-
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                First tale free · Plans from $4.99 a month · Nothing to download
-              </p>
+              <Link
+                href={ctaHref}
+                className="mt-6 inline-flex h-14 w-full items-center justify-center rounded-full bg-teal-600 px-10 text-lg font-semibold text-white shadow-lg shadow-teal-600/20 active:bg-teal-700 sm:w-auto"
+              >
+                {ctaLabel}
+              </Link>
+              <p className="mt-3 text-sm text-gray-500">Plans from $4.99 a month · Nothing to download</p>
             </div>
 
-            {/* Demo video: shown on every screen size now */}
-            <div className="relative hero-video-section max-w-xs sm:max-w-sm mx-auto w-full">
+            <div className="mx-auto w-full max-w-[260px] sm:max-w-xs">
               <HeroVideoPlayer
                 src="https://www.pettaleai.com/video/e94325a5-8745-4ee3-b757-5334f2a8497e.mp4"
                 poster="https://puxgwsckuwaahdyqwemq.supabase.co/storage/v1/object/public/pet-photo/043ab6db-d66f-4b4a-b327-ddf7220c7e14.jpeg"
                 ariaLabel="Russel's Brave Hammock Quest - Demo video"
               />
-              <p className="mt-3 text-center text-sm text-gray-500 dark:text-gray-400">
-                Russel · Baby Talk voice · Heartfelt vibe
-              </p>
-              <div className="absolute -top-4 -right-4 w-24 h-24 bg-teal-400/20 rounded-full blur-2xl -z-10" />
-              <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-emerald-400/20 rounded-full blur-2xl -z-10" />
+              <p className="mt-3 text-center text-sm text-gray-500">Russel · Baby Talk voice · Heartfelt vibe</p>
             </div>
           </div>
         </section>
 
-        {/* How it works: three steps, no essay */}
-        <section className="py-14 px-4 bg-white dark:bg-gray-900">
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-2xl font-bold text-center text-gray-900 dark:text-white mb-8">How it works</h2>
-            <ol className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              {[
-                { emoji: "🎥", title: "Upload a clip", body: "Any video from your phone. Just tell us your pet's name." },
-                {
-                  emoji: "🎭",
-                  title: "Pick a vibe",
-                  body: "Comedy, play-by-play, heartfelt and more. Or keep our pick.",
-                },
-                {
-                  emoji: "📲",
-                  title: "Post it",
-                  body: "Get a vertical video with voice and captions, plus a share link.",
-                },
-              ].map((step, i) => (
-                <li key={step.title} className="text-center space-y-2">
-                  <div className="text-4xl">{step.emoji}</div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white">
-                    {i + 1}. {step.title}
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{step.body}</p>
-                </li>
-              ))}
+        {/* Real examples beat any description */}
+        <CommunityStrip />
+
+        {/* How it works */}
+        <section className="bg-gray-50 px-4 py-12 dark:bg-gray-900/50">
+          <div className="mx-auto max-w-2xl">
+            <h2 className="text-center text-2xl font-bold text-gray-900 dark:text-white">How it works</h2>
+            <ol className="mt-6 space-y-3">
+              <li className="flex gap-4 rounded-2xl bg-white p-4 shadow-sm dark:bg-gray-900">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-600 font-bold text-white">
+                  1
+                </span>
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">We watch every moment</h3>
+                  <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
+                    Upload any clip from your phone. Our AI picks out what happens: the pounce, the side-eye, the
+                    zoomies.
+                  </p>
+                </div>
+              </li>
+              <li className="flex gap-4 rounded-2xl bg-white p-4 shadow-sm dark:bg-gray-900">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-600 font-bold text-white">
+                  2
+                </span>
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-gray-900 dark:text-white">Your pet tells the story</h3>
+                  <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
+                    What they were thinking, written to follow the action and narrated in one of 12 voices. Pick a
+                    vibe or keep ours.
+                  </p>
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {NARRATION_GENRES.map((g) => (
+                      <span
+                        key={g.value}
+                        className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                      >
+                        {g.emoji} {g.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </li>
+              <li className="flex gap-4 rounded-2xl bg-white p-4 shadow-sm dark:bg-gray-900">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-600 font-bold text-white">
+                  3
+                </span>
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">Post it</h3>
+                  <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
+                    A vertical, captioned video made to share, plus a link that plays anywhere.
+                  </p>
+                </div>
+              </li>
             </ol>
+            <p className="mt-4 text-center text-sm font-medium text-gray-700 dark:text-gray-300">
+              The script, voiceover, captions and edit, done for you.
+            </p>
+
+            {/* What makes it theirs */}
+            <div className="mt-3 flex gap-4 rounded-2xl bg-gradient-to-r from-amber-50 to-teal-50 p-4 ring-1 ring-amber-100 dark:from-amber-900/20 dark:to-teal-900/20 dark:ring-amber-900/40">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-amber-500 dark:bg-gray-900">
+                <Sparkles className="h-5 w-5" />
+              </span>
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">Sounds like them, not a robot</h3>
+                <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-300">
+                  Six quick taps about their energy, attitude and quirks, and every tale is told the way your pet
+                  would tell it.
+                </p>
+              </div>
+            </div>
           </div>
         </section>
 
         {/* Two audiences, one product */}
-        <section className="py-14 px-4 bg-teal-50/50 dark:bg-teal-950/10">
-          <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="rounded-2xl bg-white dark:bg-gray-800 border border-teal-100 dark:border-teal-800 p-6">
-              <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-2">For pet creators</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Turn everyday clips into narrated posts in minutes. Vertical, captioned and made for Reels, TikTok
-                and Shorts. Give your pet a signature voice your followers recognize.
-              </p>
+        <section className="px-4 py-12">
+          <div className="mx-auto grid max-w-4xl grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="flex gap-4 rounded-2xl border border-gray-100 p-4 dark:border-gray-800">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">
+                <Clapperboard className="h-5 w-5" />
+              </span>
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">For pet creators</h3>
+                <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
+                  Skip writing scripts and recording voiceovers. Narrated, captioned posts for Reels, TikTok and
+                  Shorts in minutes.
+                </p>
+              </div>
             </div>
-            <div className="rounded-2xl bg-white dark:bg-gray-800 border border-teal-100 dark:border-teal-800 p-6">
-              <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-2">For pet families</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                If you can post to Facebook, you can do this. Text it to family, share it, or keep it as a
-                keepsake of who they are.
-              </p>
+            <div className="flex gap-4 rounded-2xl border border-gray-100 p-4 dark:border-gray-800">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-300">
+                <Heart className="h-5 w-5" />
+              </span>
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">For pet families</h3>
+                <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
+                  If you can post to Facebook, you can do this. Text it to family or keep it as a keepsake.
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="text-center mt-8">
-            <Button asChild variant="outline" size="lg" className="h-12 border-2 border-teal-600 text-teal-700 bg-transparent">
-              <Link href="/community/public">See more pet tales</Link>
-            </Button>
           </div>
         </section>
 
         {/* Quick answers to the questions that stop people at sign-up */}
-        <section className="py-14 px-4 bg-white dark:bg-gray-900">
-          <div className="max-w-2xl mx-auto">
-            <h2 className="text-2xl font-bold text-center text-gray-900 dark:text-white mb-6">Good to know</h2>
-            <div className="divide-y divide-gray-100 dark:divide-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800">
-              {[
-                {
-                  q: "Is the first tale really free?",
-                  a: "Yes. Sign up with your email and your first tale is on us. No credit card needed.",
-                },
-                {
-                  q: "What clips work best?",
-                  a: "Vertical clips under a minute, up to 75MB. Most phone videos of 15 to 45 seconds are perfect.",
-                },
-                {
-                  q: "Who can see my tales?",
-                  a: "You decide for each tale: keep it to yourself, send the link to family, or post it to Community.",
-                },
-                {
-                  q: "What does it cost after that?",
-                  a: "Plans start at $4.99 a month for 10 tales. Cancel anytime in Settings.",
-                },
-              ].map((item) => (
-                <details key={item.q} className="group p-4 [&_summary::-webkit-details-marker]:hidden">
-                  <summary className="flex cursor-pointer items-center justify-between gap-4 font-medium text-gray-900 dark:text-white min-h-[44px]">
+        <section className="px-4 pb-12">
+          <div className="mx-auto max-w-2xl">
+            <h2 className="text-center text-2xl font-bold text-gray-900 dark:text-white">Good to know</h2>
+            <div className="mt-6 divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-100 dark:divide-gray-800 dark:border-gray-800">
+              {FAQ.map((item) => (
+                <details key={item.q} className="group px-4 py-2 [&_summary::-webkit-details-marker]:hidden">
+                  <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-4 font-medium text-gray-900 dark:text-white">
                     {item.q}
-                    <span className="text-teal-600 transition-transform group-open:rotate-45 text-xl leading-none">+</span>
+                    <span className="text-xl leading-none text-teal-600 transition-transform group-open:rotate-45">+</span>
                   </summary>
-                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{item.a}</p>
+                  <p className="pb-2 text-sm text-gray-600 dark:text-gray-400">{item.a}</p>
                 </details>
               ))}
             </div>
@@ -166,22 +227,21 @@ export default async function Home() {
         </section>
 
         {/* Closing call to action: visitors who scroll this far are deciding */}
-        <section className="py-14 px-4 bg-gradient-to-b from-teal-50/50 to-white dark:from-teal-950/10 dark:to-gray-950 text-center">
-          <div className="max-w-md mx-auto space-y-4">
+        <section className="bg-gradient-to-b from-white to-teal-50/70 px-4 pb-16 pt-4 text-center dark:from-gray-950 dark:to-teal-950/20">
+          <div className="mx-auto max-w-md">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">What would your pet say?</h2>
-            <p className="text-gray-600 dark:text-gray-400">Find out in about 3 minutes.</p>
-            <Button asChild size="lg" className="w-full h-14 text-lg font-semibold bg-teal-600 hover:bg-teal-700 shadow-lg">
-              <Link href={session ? "/dashboard/reels/new" : "/auth/signup?ref=landing_bottom"}>
-                {session ? "Make a Tale" : "Make Your First Tale Free"}
-              </Link>
-            </Button>
+            <p className="mt-2 text-gray-600 dark:text-gray-400">Find out in a few minutes.</p>
+            <Link
+              href={session ? "/dashboard/reels/new" : "/auth/signup?ref=landing_bottom"}
+              className="mt-5 inline-flex h-14 w-full items-center justify-center rounded-full bg-teal-600 text-lg font-semibold text-white shadow-lg shadow-teal-600/20 active:bg-teal-700"
+            >
+              {ctaLabel}
+            </Link>
           </div>
         </section>
       </main>
 
-      {/* Public Footer */}
       <PublicFooter />
-
     </div>
   )
 }
