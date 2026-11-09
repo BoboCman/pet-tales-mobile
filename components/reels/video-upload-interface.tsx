@@ -672,7 +672,7 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
     const needsName = isAddingPet && !quickPet.name.trim()
     const clipLength = formatClipLength(clipSeconds)
     return (
-      <div className="mx-auto max-w-md space-y-6 pb-44 md:pb-0">
+      <div className="mx-auto max-w-md space-y-6 pb-36 md:pb-0">
         {hiddenInputs}
         <OutOfCreditsModal
           isOpen={showOutOfCreditsModal}
@@ -810,8 +810,9 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
 
         {isOutOfCredits && <OutOfCreditsBanner balance={creditBalance || 0} />}
 
-        {/* Create bar: fixed just above the bottom nav on phones, inline on larger screens */}
-        <div className="fixed inset-x-0 bottom-[calc(70px+env(safe-area-inset-bottom,24px))] z-40 border-t border-gray-200 bg-white/95 px-4 pb-3 pt-3 backdrop-blur md:static md:border-0 md:bg-transparent md:p-0 dark:border-gray-800 dark:bg-gray-950/95">
+        {/* Create bar: pinned to the bottom on phones (the bottom nav is hidden on this page, see
+            isPrivateTaleViewer in bottom-nav.tsx), inline on larger screens */}
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur md:static md:border-0 md:bg-transparent md:p-0 dark:border-gray-800 dark:bg-gray-950/95">
           <div className="mx-auto max-w-md">
             <Button
               onClick={handleVideoUpload}
@@ -823,7 +824,6 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
             </Button>
             <p className="mt-1.5 truncate text-center text-xs text-gray-500">
               {[starName, selectedGenre?.label, selectedVoicePersonality?.label].filter(Boolean).join(" · ")}
-              {creditBalance !== null && ` · uses 1 of your ${creditBalance} tales`}
             </p>
           </div>
         </div>
@@ -864,7 +864,7 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
     <div className="mx-auto max-w-md space-y-6">
       <div className="text-center">
         <h2 className="mb-1 text-2xl font-bold text-gray-900 dark:text-white">
-          {pets.length === 0 ? "Let's make your first tale" : "New tale"}
+          {pets.length === 0 ? "Let's make your first tale" : "What's your pet up to?"}
         </h2>
         <p className="text-sm text-gray-600 dark:text-gray-400">
           Pick a clip of your pet. We'll write the story and add a voice and captions.
