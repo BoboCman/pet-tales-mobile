@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { formatDistanceToNowStrict } from "date-fns"
-import { Eye, Globe, Heart, MoreHorizontal, PawPrint, Play, Plus, Trash2 } from "lucide-react"
+import { Eye, Globe, Heart, MoreHorizontal, Play, Plus, Trash2 } from "lucide-react"
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { useToast } from "@/hooks/use-toast"
 import { deleteReel } from "@/app/actions/reel-actions"
@@ -40,45 +40,45 @@ const ago = (iso: string) => {
   }
 }
 
-/** Poster frame of a finished tale; falls back to the video's first frame, then to a soft gradient. */
+// Soft gradients for tales with no poster yet, picked per pet so the grid stays varied
+const FALLBACK_GRADIENTS = [
+  "from-teal-500 to-emerald-700",
+  "from-amber-400 to-orange-600",
+  "from-sky-500 to-indigo-700",
+  "from-rose-400 to-fuchsia-700",
+  "from-lime-500 to-green-700",
+  "from-violet-500 to-purple-800",
+]
+
+/**
+ * Poster frame of a finished tale, or a gradient when there is none yet. Never loads the video:
+ * a grid of video previews downloads every tale and makes the page sluggish. Older tales get a
+ * poster the first time they are opened (see PosterBackfill).
+ */
 function TalePoster({ tale }: { tale: GalleryTale }) {
-  const [source, setSource] = useState<"poster" | "video" | "none">(
-    tale.posterUrl ? "poster" : tale.videoUrl ? "video" : "none",
-  )
+  const [failed, setFailed] = useState(!tale.posterUrl)
   const imgRef = useRef<HTMLImageElement>(null)
   // A poster that failed before hydration never fires onError in React, so check once mounted
   useEffect(() => {
     const img = imgRef.current
-    if (img && img.complete && img.naturalWidth === 0) setSource(tale.videoUrl ? "video" : "none")
-  }, [tale.videoUrl])
-  if (source === "poster") {
+    if (img && img.complete && img.naturalWidth === 0) setFailed(true)
+  }, [])
+  if (!failed) {
     return (
       <img
         ref={imgRef}
         src={tale.posterUrl!}
         alt=""
         loading="lazy"
-        onError={() => setSource(tale.videoUrl ? "video" : "none")}
+        decoding="async"
+        onError={() => setFailed(true)}
         className="absolute inset-0 h-full w-full object-cover"
       />
     )
   }
-  if (source === "video") {
-    return (
-      <video
-        src={`${tale.videoUrl}#t=0.5`}
-        preload="metadata"
-        muted
-        playsInline
-        onError={() => setSource("none")}
-        className="absolute inset-0 h-full w-full object-cover"
-      />
-    )
-  }
+  const seed = [...(tale.petName || "pet")].reduce((n, c) => n + c.charCodeAt(0), 0)
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-teal-500 to-emerald-700">
-      <PawPrint className="h-10 w-10 text-white/60" />
-    </div>
+    <div className={cn("absolute inset-0 bg-gradient-to-br", FALLBACK_GRADIENTS[seed % FALLBACK_GRADIENTS.length])} />
   )
 }
 

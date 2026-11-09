@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { MobileReelDetail } from "@/components/reels/mobile-reel-detail"
+import { PosterBackfill } from "@/components/reels/poster-backfill"
 import { useMobile } from "@/hooks/use-mobile"
 import { useToast } from "@/hooks/use-toast"
 import { getPublicUrl } from "@/lib/supabase/url-utils"
@@ -903,9 +904,15 @@ export default function ReelDetailPage() {
     )
   }
 
+  const posterBackfill = (
+    <PosterBackfill taleId={reel.id} videoUrl={reel.merged_video_supabase_url || reel.merged_video_url} />
+  )
+
   // Use mobile component for mobile devices
   if (isMobile) {
     return (
+      <>
+      {posterBackfill}
       <MobileReelDetail
         reel={reel}
         isLiked={isLiked}
@@ -923,6 +930,7 @@ export default function ReelDetailPage() {
         isTogglingPublic={isTogglingPublic}
         isDownloading={isDownloading}
       />
+      </>
     )
   }
 
@@ -949,6 +957,7 @@ export default function ReelDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {posterBackfill}
       {/* Main Content - Three Column Grid */}
       <div className="grid grid-cols-[auto_1fr_420px] gap-6 max-w-[1400px] mx-auto px-10 py-10 items-start xl:grid-cols-[auto_1fr_420px] lg:grid-cols-[auto_1fr_360px] md:grid-cols-1 md:gap-8 sm:px-4">
         {/* LEFT COLUMN: Back Button */}
