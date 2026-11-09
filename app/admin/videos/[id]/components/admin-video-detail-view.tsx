@@ -4,6 +4,8 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { TaleHealthBadge } from "@/components/admin/tale-health-badge"
+import type { TaleHealth } from "@/lib/tale-health"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { RefreshCw, Video, Eye, Heart, User, Globe, Lock, Trash2, AlertCircle, RotateCcw, Loader2 } from "lucide-react"
@@ -36,6 +38,8 @@ interface VideoDetailData {
     status: string
     mergeError: string | null
     compressionStatus: string | null
+    health?: TaleHealth
+    mergeDetails?: unknown
   }
   pet: {
     id: string
@@ -384,6 +388,35 @@ export default function AdminVideoDetailView({ videoId }: AdminVideoDetailViewPr
               <div className="text-sm text-gray-500">Status</div>
               <Badge variant="secondary">{data.video.status}</Badge>
             </div>
+            {data.video.health && (
+              <div className="md:col-span-2">
+                <div className="text-sm text-gray-500">Length check</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <TaleHealthBadge health={data.video.health} />
+                  <span className="text-sm">{data.video.health.label}</span>
+                </div>
+                {data.video.mergeDetails != null && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs text-gray-500">Merge log (merge_details)</summary>
+                    <pre className="mt-1 max-h-72 overflow-auto rounded bg-gray-50 p-2 text-xs">
+                      {JSON.stringify(
+                        typeof data.video.mergeDetails === "string"
+                          ? (() => {
+                              try {
+                                return JSON.parse(data.video.mergeDetails as string)
+                              } catch {
+                                return data.video.mergeDetails
+                              }
+                            })()
+                          : data.video.mergeDetails,
+                        null,
+                        2,
+                      )}
+                    </pre>
+                  </details>
+                )}
+              </div>
+            )}
             <div>
               <div className="text-sm text-gray-500">Narration Style</div>
               <div className="font-medium">{data.video.narrationStyle}</div>

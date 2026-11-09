@@ -157,3 +157,36 @@ export async function createDiaryEntry(data: {
     return { success: false, error: "An unexpected error occurred", entry: null }
   }
 }
+
+/**
+ * Tales from the last 2 hours that are still being made, so "My tales" can show them as
+ * "Making…" instead of the tale being invisible until it is done. Failed ones are left out.
+ */
+export async function getTalesInProgress() {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return []
+    const since = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+    const { data } = await supabase
+      .from("diary_entries")
+      .select("id, title, created_at, compression_status, merged_video_status, billing_status, pets ( name )")
+      .eq("user_id", user.id)
+      .gte("created_at", since)
+      .or("merged_video_status.is.null,merged_video_status.in.(pending,processing)")
+      .order("created_at", { ascending: false })
+    return (data || [])
+      .filter((e: any) => e.compression_status !== "failed" && e.billing_status !== "billing_required")
+      .map((e: any) => ({
+        id: e.id as string,
+        title: (e.title as string) || null,
+        createdAt: e.created_at as string,
+        petName: (Array.isArray(e.pets) ? e.pets[0]?.name : e.pets?.name) || null,
+      }))
+  } catch (error) {
+    console.error("Error in getTalesInProgress:", error)
+    return []
+  }
+}

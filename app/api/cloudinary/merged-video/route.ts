@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { isLengthOk } from "@/lib/tale-health"
 import { sendTaleReadyEmail } from "@/lib/email/send"
 import { v2 as cloudinary } from "cloudinary"
 import { findCompressedCopy } from "@/lib/cloudinary-eager"
@@ -1148,6 +1149,10 @@ async function saveMergeDetails(entryId: string, details: Record<string, any> | 
         merge_details: {
           ...details,
           finished_at: new Date().toISOString(),
+          // Lets the admin "Needs attention" filter find tales that ended early or ran long
+          ...(typeof details.final_seconds === "number" && typeof details.audio_seconds === "number"
+            ? { length_ok: isLengthOk(details.final_seconds, details.audio_seconds) }
+            : {}),
           ...(previousRuns.length ? { previous_runs: previousRuns.slice(0, 4) } : {}),
         },
       })

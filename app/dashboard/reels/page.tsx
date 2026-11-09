@@ -1,139 +1,71 @@
-import { Suspense } from "react"
 import Link from "next/link"
 import { Plus, Video } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { ReelCard } from "@/components/reels/reel-card"
-import { getDiaryEntries } from "@/app/actions/diary-actions"
-import { EmptyState } from "@/components/ui/empty-state"
+import { getDiaryEntries, getTalesInProgress } from "@/app/actions/diary-actions"
+import { TalesGallery, type GalleryTale } from "@/components/reels/tales-gallery"
 
 export const dynamic = "force-dynamic"
 
-// Loading skeleton component
-function ReelCardSkeleton() {
-  return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden animate-pulse">
-      <div className="flex items-center p-4 border-b border-gray-100">
-        <div className="h-14 w-14 rounded-full bg-gray-200 mr-3"></div>
-        <div className="flex-1">
-          <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
-          <div className="h-3 bg-gray-200 rounded w-16"></div>
-        </div>
-      </div>
-      <div className="p-4 space-y-3">
-        <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-        <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-        <div className="h-9 bg-gray-200 rounded"></div>
-      </div>
-    </div>
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
+
+function toGalleryTale(e: any): GalleryTale {
+  const pet = Array.isArray(e.pets) ? e.pets[0] : e.pets
+  const petImage = [pet?.avatar_url, pet?.photo_url, pet?.image_url].find(
+    (u: unknown) => typeof u === "string" && u.startsWith("http"),
   )
+  return {
+    id: e.id,
+    title: e.title || "Untitled tale",
+    mood: e.mood || null,
+    createdAt: e.created_at,
+    isPublic: !!e.is_public,
+    views: e.view_count ?? 0,
+    likes: e.like_count ?? 0,
+    petId: pet?.id ?? e.pet_id ?? null,
+    petName: pet?.name || e.pet_name || "Your pet",
+    petImage: petImage ?? null,
+    videoUrl: e.merged_video_supabase_url || e.merged_video_url || null,
+    // Poster frame saved by the merge step (newer tales); the card falls back to the video's first frame
+    posterUrl: SUPABASE_URL ? `${SUPABASE_URL}/storage/v1/object/public/videos/thumbnails/pet-tale-${e.id}.jpg` : null,
+  }
 }
 
-function ReelsGrid() {
-  return (
-    <Suspense
-      fallback={
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <ReelCardSkeleton key={i} />
-          ))}
-        </div>
-      }
-    >
-      <ReelsContent />
-    </Suspense>
-  )
-}
-
-async function ReelsContent() {
-  const result = await getDiaryEntries()
+export default async function ReelsPage() {
+  const [result, inProgress] = await Promise.all([getDiaryEntries(), getTalesInProgress()])
 
   if (!result.success) {
     return (
-      <div className="text-center py-8">
-        <p className="text-red-600">Error loading pet tales: {result.error}</p>
+      <div className="px-4 py-12 text-center">
+        <p className="text-red-600">We couldn&apos;t load your tales. Please refresh the page.</p>
       </div>
     )
   }
 
-  const reels = result.entries || []
+  const tales = (result.entries || []).map(toGalleryTale)
 
-  if (reels.length === 0) {
+  if (tales.length === 0 && inProgress.length === 0) {
     return (
-      <EmptyState
-        icon={<Video className="h-12 w-12 text-teal-600" />}
-        title="No Pet Tales Yet"
-        description="Create your first pet tale to start sharing magical stories"
-        action={
-          <Button asChild className="bg-teal-600 hover:bg-teal-700 text-white w-full sm:w-auto">
-            <Link href="/dashboard/reels/new">
-              <Plus className="h-4 w-4 mr-2" />
-              Create Your First Tale
-            </Link>
-          </Button>
-        }
-      />
+      <div className="flex min-h-[70dvh] flex-col items-center justify-center px-6 text-center">
+        <span className="mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-teal-50 dark:bg-teal-900/30">
+          <Video className="h-10 w-10 text-teal-600" />
+        </span>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Your first tale awaits</h1>
+        <p className="mt-2 max-w-xs text-gray-500">
+          Pick a clip of your pet and we&apos;ll give them a voice and a story in about 2 minutes.
+        </p>
+        <Link
+          href="/dashboard/reels/new"
+          className="mt-6 inline-flex h-12 items-center gap-2 rounded-full bg-teal-600 px-6 font-semibold text-white shadow-sm active:bg-teal-700"
+        >
+          <Plus className="h-5 w-5" />
+          Make a tale
+        </Link>
+      </div>
     )
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
-      {reels.map((reel) => (
-        <ReelCard key={reel.id} reel={reel} />
-      ))}
+    <div className="mx-auto min-h-screen max-w-4xl bg-white dark:bg-gray-950">
+      <TalesGallery tales={tales} inProgress={inProgress} />
     </div>
   )
-}
-
-export default function ReelsPage() {
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Hero Section */}
-      <div className="bg-teal-600 text-white py-6 px-4 md:py-8">
-        <div className="container mx-auto max-w-4xl">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold mb-2">Pet Tales</h1>
-              <p className="text-teal-50 text-sm md:text-base">Watch and share your pet's magical video stories</p>
-            </div>
-            <Button asChild className="bg-white text-teal-600 hover:bg-teal-50 font-medium px-6 py-2 w-full md:w-auto">
-              <Link href="/dashboard/reels/new">
-                <Plus className="h-4 w-4 mr-2" />
-                Create New Tale
-              </Link>
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="container mx-auto max-w-4xl py-4 px-3">
-        {/* Header Section */}
-        <div className="flex items-center justify-between mb-6">
-          <Suspense fallback={<div className="h-8 bg-gray-200 rounded w-32 animate-pulse"></div>}>
-            <ReelsHeader />
-          </Suspense>
-          <Button
-            asChild
-            variant="outline"
-            className="text-teal-600 border-teal-200 hover:bg-teal-50 hidden sm:flex bg-transparent"
-          >
-            <Link href="/dashboard/reels/new">
-              <Plus className="h-4 w-4 mr-2" />
-              Create Tale
-            </Link>
-          </Button>
-        </div>
-
-        {/* Reels Grid */}
-        <ReelsGrid />
-      </div>
-    </div>
-  )
-}
-
-async function ReelsHeader() {
-  const result = await getDiaryEntries()
-  const reelsCount = result.success ? (result.entries || []).length : 0
-
-  return <h2 className="text-xl font-semibold text-gray-900">My Pet Tales ({reelsCount})</h2>
 }
