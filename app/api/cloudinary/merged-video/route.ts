@@ -80,8 +80,13 @@ async function cloudinaryWithRetry<T>(operation: () => Promise<T>, operationName
     } catch (error: any) {
       lastError = error
 
+      // 420 "Timeout waiting for parallel processing": the Free plan's limit on videos processed at
+      // once (e.g. two tales finishing together). It clears after a few seconds, so wait and retry.
+      const isBusyError = error.http_code === 420 || /parallel processing/i.test(error.message || "")
+
       // Check if this is a 502 server error that we should retry
       const is502Error =
+        isBusyError ||
         error.http_code === 502 ||
         error.message?.includes("502") ||
         error.message?.includes("Server returned unexpected status code - 502") ||
@@ -106,7 +111,7 @@ async function cloudinaryWithRetry<T>(operation: () => Promise<T>, operationName
       }
 
       // Calculate exponential backoff delay: 2s, 4s, 8s
-      const delay = Math.pow(2, attempt) * 1000
+      const delay = isBusyError ? attempt * 8000 : Math.pow(2, attempt) * 1000
       console.log(
         `⏳ ${operationName} - 502 error detected, retrying in ${delay}ms (attempt ${attempt + 1}/${maxAttempts})`,
       )
@@ -1354,8 +1359,11 @@ async function createMergedVideoWithCloudinarySubtitles(
       ...transformations,
     ]
 
-    // A render counts as too long if it runs more than 1 second past the narration.
-    const isTooLong = (duration?: number) => typeof duration === "number" && duration > audioDuration + 1
+    // A render counts as too long if the video runs more than 3 seconds past the narration. A second
+    // or two of picture after the last word is fine (and the old 1s limit sent a 36.2s render for a
+    // 34.9s narration down the whole fallback chain). Too short is worse: it cuts the narration off.
+    const isTooLong = (duration?: number) => typeof duration === "number" && duration > audioDuration + 3
+    const isTooShort = (duration?: number) => typeof duration === "number" && duration < audioDuration - 1
 
     let finalResult: Awaited<ReturnType<typeof uploadWithEagerAsync>>
     try {
@@ -1379,7 +1387,7 @@ async function createMergedVideoWithCloudinarySubtitles(
         try {
           const trimmed = await trimStoredVideo(finalPublicId, audioDuration)
           noteRender("single pass, trimmed", trimmed)
-          if (trimmed.duration && trimmed.duration < (finalResult.duration ?? Infinity)) {
+          if (trimmed.duration && trimmed.duration < (finalResult.duration ?? Infinity) && !isTooShort(trimmed.duration)) {
             finalResult = { ...finalResult, ...trimmed }
           }
         } catch (trimError) {
@@ -1488,16 +1496,9 @@ async function createMergedVideoWithCloudinarySubtitles(
           "STEP 6 fallback",
         )
         noteRender("fallback", finalResult)
-        if (isTooLong(finalResult.duration)) {
-          // The trim is only known to be honoured right after a loop (the short-clip path that has
-          // always worked). Force one extra play, then trim; only the trimmed length is output.
-          console.warn("⚠️ Fallback render still untrimmed; retrying with loop + trim")
-          finalResult = await renderOnce(
-            [{ effect: "loop:1" }, { end_offset: audioDuration }, { effect: "volume:mute" }],
-            "STEP 6 fallback, loop + trim",
-          )
-          noteRender("fallback, loop + trim", finalResult)
-        }
+        // (A "loop:1 + trim" retry used to follow here. It cut tales short: Cloudinary applies the
+        // trim to the clip before looping, so a 12s clip came out 24s under a 35s narration. Any
+        // render that is still too long is cut by trimStoredVideo below instead.)
       } catch (fallbackError) {
         throw new Error(`${describeError(fallbackError, "fallback render failed")} (first try: ${firstTry})`)
       }
@@ -1513,7 +1514,7 @@ async function createMergedVideoWithCloudinarySubtitles(
       try {
         const trimmed = await trimStoredVideo(finalPublicId, audioDuration)
         noteRender("trim finished tale", trimmed)
-        if (trimmed.duration && trimmed.duration < (finalResult.duration ?? Infinity)) {
+        if (trimmed.duration && trimmed.duration < (finalResult.duration ?? Infinity) && !isTooShort(trimmed.duration)) {
           finalResult = { ...finalResult, ...trimmed }
         }
       } catch (trimError) {
@@ -1523,6 +1524,11 @@ async function createMergedVideoWithCloudinarySubtitles(
       if (isTooLong(finalResult.duration)) {
         console.warn(`⚠️ Tale is still ${finalResult.duration}s for a ${audioDuration}s narration`)
       }
+    }
+    if (isTooShort(finalResult.duration)) {
+      // Never hand out a tale that stops mid-sentence; fail it so Retry/Redo can run again
+      details.too_short = true
+      throw new Error(`Finished tale is ${finalResult.duration}s but the narration is ${audioDuration}s (cut short)`)
     }
     details.final_seconds = finalResult.duration ?? null
 
