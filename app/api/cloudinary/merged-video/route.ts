@@ -30,6 +30,8 @@ interface MergedVideoResult {
   error?: string
   approach?: string
   captionsIncluded?: boolean
+  /** What STEP 1-7 measured and which render path ran; saved to diary_entries.merge_details */
+  details?: Record<string, any>
 }
 
 /**
@@ -680,13 +682,26 @@ async function uploadWithEagerAsync(
     }
 
     console.log(`✅ ${operationName}: Async transformation completed`)
+    // Store the rendered derivative as the asset itself (plain upload, no processing). Before, the
+    // derivative URL was returned with no length, so an untrimmed render passed every check.
+    const stored: any = await cloudinaryWithRetry(
+      () =>
+        cloudinary.uploader.upload(eagerUrl, {
+          resource_type: "video",
+          public_id: publicId,
+          overwrite: true,
+          type: "upload",
+          timeout: 300000,
+        }),
+      `${operationName} (Store async render)`,
+    )
     return {
       success: true,
-      public_id: publicId,
-      secure_url: eagerUrl,
-      // Unknown until rendered; callers skip their length checks when this is undefined
-      duration: undefined,
-      bytes: ready.bytes,
+      public_id: stored.public_id,
+      secure_url: stored.secure_url,
+      duration: stored.duration,
+      bytes: stored.bytes,
+      hasAudio: stored.audio ? Boolean(stored.audio.codec) : undefined,
     }
   }
 }
@@ -799,11 +814,19 @@ async function getVideoDuration(publicId: string): Promise<number> {
  * Narration length. This sets how long the finished tale is, so it never silently falls back
  * to a guess: a wrong value cut tales off after 10 seconds.
  */
-async function getAudioDuration(publicId: string, vttUrl?: string | null): Promise<number> {
+async function getAudioDuration(
+  publicId: string,
+  vttUrl?: string | null,
+  details?: Record<string, any>,
+): Promise<number> {
   const fromCloudinary = await getMediaDuration(publicId)
-  if (fromCloudinary) return fromCloudinary
   // Captions end when the narration ends; add a little so the last word isn't clipped
   const fromCaptions = await getVttEndSeconds(vttUrl)
+  if (details) {
+    details.audio_seconds_cloudinary = fromCloudinary
+    details.captions_end_seconds = fromCaptions
+  }
+  if (fromCloudinary) return fromCloudinary
   if (fromCaptions) return Math.round((fromCaptions + 0.75) * 100) / 100
   throw new Error(`Could not find how long the narration is (${publicId})`)
 }
@@ -997,6 +1020,65 @@ async function uploadVideoToSupabaseStorage(
 }
 
 /**
+ * Cut a stored video to `seconds` from its start, as an eager_async derivative (no 40MB sync
+ * limit), then store the result over the same asset so its real length is known.
+ */
+async function trimStoredVideo(publicId: string, seconds: number) {
+  const explicitResult: any = await cloudinaryWithRetry(
+    () =>
+      cloudinary.uploader.explicit(publicId, {
+        type: "upload",
+        resource_type: "video",
+        eager: [{ transformation: [{ start_offset: 0, duration: seconds }], format: "mp4" }],
+        eager_async: true,
+      }),
+    "Trim finished tale",
+  )
+  const eagerUrl: string | undefined = explicitResult?.eager?.[0]?.secure_url
+  if (!eagerUrl) throw new Error("Cloudinary did not return a URL for the trim")
+  console.log("✂️ Trim started, waiting for:", eagerUrl.substring(0, 160))
+  const ready = await waitForDerivedVideo(publicId, eagerUrl, 90000, 3000)
+  if (!ready.success) throw new Error(ready.error || "Trim did not finish")
+  const stored: any = await cloudinaryWithRetry(
+    () =>
+      cloudinary.uploader.upload(eagerUrl, {
+        resource_type: "video",
+        public_id: publicId,
+        overwrite: true,
+        type: "upload",
+        timeout: 300000,
+      }),
+    "Store trimmed tale",
+  )
+  console.log(`✂️ Trimmed tale: ${stored.duration}s (wanted ${seconds}s)`)
+  return {
+    success: true,
+    public_id: stored.public_id as string,
+    secure_url: stored.secure_url as string,
+    duration: stored.duration as number | undefined,
+    bytes: stored.bytes as number | undefined,
+  }
+}
+
+/**
+ * Save what the merge measured (narration length, clip length, each render's length, which path
+ * ran) so a tale that comes out the wrong length can be diagnosed from the database alone.
+ * Never fails the merge, e.g. before the merge_details column has been added.
+ */
+async function saveMergeDetails(entryId: string, details: Record<string, any> | undefined) {
+  if (!details) return
+  try {
+    const { error } = await supabaseAdmin
+      .from("diary_entries")
+      .update({ merge_details: { ...details, finished_at: new Date().toISOString() } })
+      .eq("id", entryId)
+    if (error) console.warn("⚠️ Could not save merge_details (non-fatal):", error.message)
+  } catch (error) {
+    console.warn("⚠️ Could not save merge_details (non-fatal):", describeError(error, "unknown"))
+  }
+}
+
+/**
  * MAIN FUNCTION: Use Cloudinary's built-in subtitle overlay with Whisper-generated HYBRID captions
  */
 async function createMergedVideoWithCloudinarySubtitles(
@@ -1008,6 +1090,11 @@ async function createMergedVideoWithCloudinarySubtitles(
 ): Promise<MergedVideoResult> {
   // Tracks which step is running so a failure says where it happened.
   let currentStep = "STEP 1 (audio upload / captions)"
+  const mergeStartedAt = Date.now()
+  const details: Record<string, any> = { started_at: new Date().toISOString(), renders: [] }
+  const noteRender = (step: string, r: { duration?: number; bytes?: number } | undefined) => {
+    details.renders.push({ step, seconds: r?.duration ?? null, bytes: r?.bytes ?? null })
+  }
   try {
     console.log("🎬 8-STEP PROCESS: Creating merged video with WHISPER HYBRID SUBTITLE OVERLAY...")
     console.log("📹 Video Public ID:", videoPublicId)
@@ -1032,7 +1119,7 @@ async function createMergedVideoWithCloudinarySubtitles(
       console.log("  - Caption status:", existingEntry.caption_status)
 
       audioPublicId = existingEntry.cloudinary_audio_public_id
-      audioDuration = await getAudioDuration(audioPublicId, existingEntry.caption_vtt_url)
+      audioDuration = await getAudioDuration(audioPublicId, existingEntry.caption_vtt_url, details)
     } else {
       console.log("📤 Audio not found in Cloudinary, uploading with Whisper HYBRID captions...")
       const audioUpload = await uploadAudioWithCaptions(audioUrl, entryId)
@@ -1058,6 +1145,9 @@ async function createMergedVideoWithCloudinarySubtitles(
     const loopComponents: any[] = extraPlays > 0 ? [{ effect: `loop:${extraPlays}` }] : []
     console.log("📏 Video duration:", videoDuration, "seconds")
     console.log("🔄 Loop count needed:", loopCount)
+    details.audio_seconds = audioDuration
+    details.clip_seconds = videoDuration
+    details.extra_plays = extraPlays
 
     // STEP 3: Pick the source video.
     // Use the 720p copy made by /api/video/compress (optimized_video_url). Cloudinary bills video
@@ -1071,6 +1161,7 @@ async function createMergedVideoWithCloudinarySubtitles(
     const sourceVideoUrl = optimizedVideoUrl || originalVideoUrl
     console.log("🔗 Source video URL:", sourceVideoUrl.substring(0, 100) + "...")
     console.log("  - Using 720p copy:", Boolean(optimizedVideoUrl))
+    details.source = optimizedVideoUrl ? "720p copy" : "original upload"
 
     // STEP 4/5: Wait for Whisper captions. The loop no longer needs its own intermediate video,
     // so captions are awaited first and everything is rendered in one Cloudinary pass below.
@@ -1211,11 +1302,27 @@ async function createMergedVideoWithCloudinarySubtitles(
         singlePassTransformations,
         "Single-pass Final Video (STEP 6)",
       )
+      noteRender("single pass", finalResult)
       if (!finalResult.success) {
         throw new Error(finalResult.error || "Single-pass render failed")
       }
       if (finalResult.hasAudio === false) {
         throw new Error("Single-pass render came back without an audio track")
+      }
+      if (isTooLong(finalResult.duration)) {
+        // Narration and captions are in; only the video runs on. Cutting the finished 720p result
+        // is far cheaper and quicker than rendering everything again.
+        console.warn(`⚠️ Single-pass render is ${finalResult.duration}s for a ${audioDuration}s narration; trimming it`)
+        try {
+          const trimmed = await trimStoredVideo(finalPublicId, audioDuration)
+          noteRender("single pass, trimmed", trimmed)
+          if (trimmed.duration && trimmed.duration < (finalResult.duration ?? Infinity)) {
+            finalResult = { ...finalResult, ...trimmed }
+          }
+        } catch (trimError) {
+          details.trim_error = describeError(trimError, "trim failed")
+          console.warn("⚠️ Could not trim the single-pass render:", details.trim_error)
+        }
       }
       if (isTooLong(finalResult.duration)) {
         throw new Error(
@@ -1240,6 +1347,7 @@ async function createMergedVideoWithCloudinarySubtitles(
       // (a plain upload, no processing), render the whole chain as an eager_async derivative of
       // that copy, wait for it, then store the result as the final asset (another plain upload).
       const firstTry = describeError(singlePassError, "single-pass render failed")
+      details.single_pass_error = firstTry
       try {
         const intermediateId = `pawsense/intermediate/entry_${entryId}_looped`
         let baseId = videoPublicId
@@ -1316,6 +1424,7 @@ async function createMergedVideoWithCloudinarySubtitles(
           [...loopComponents, { end_offset: audioDuration, effect: "volume:mute" }],
           "STEP 6 fallback",
         )
+        noteRender("fallback", finalResult)
         if (isTooLong(finalResult.duration)) {
           // The trim is only known to be honoured right after a loop (the short-clip path that has
           // always worked). Force one extra play, then trim; only the trimmed length is output.
@@ -1324,16 +1433,35 @@ async function createMergedVideoWithCloudinarySubtitles(
             [{ effect: "loop:1" }, { end_offset: audioDuration }, { effect: "volume:mute" }],
             "STEP 6 fallback, loop + trim",
           )
+          noteRender("fallback, loop + trim", finalResult)
         }
       } catch (fallbackError) {
         throw new Error(`${describeError(fallbackError, "fallback render failed")} (first try: ${firstTry})`)
       }
+    }
+
+    // Last resort: the finished tale still runs past the narration (the trim inside the big chain
+    // was ignored). Cut the stored 720p result on its own, with start + duration rather than an end
+    // offset. It is already narration + captions at 720p, so it is small and this is one cheap pass.
+    // Skip it when time is short: Vercel stops the merge at 300 seconds, which would fail the tale.
+    if (isTooLong(finalResult.duration) && Date.now() - mergeStartedAt < 190000) {
+      currentStep = "STEP 6 (trim finished tale)"
+      console.warn(`⚠️ Finished tale is ${finalResult.duration}s for a ${audioDuration}s narration; trimming it`)
+      try {
+        const trimmed = await trimStoredVideo(finalPublicId, audioDuration)
+        noteRender("trim finished tale", trimmed)
+        if (trimmed.duration && trimmed.duration < (finalResult.duration ?? Infinity)) {
+          finalResult = { ...finalResult, ...trimmed }
+        }
+      } catch (trimError) {
+        details.trim_error = describeError(trimError, "trim failed")
+        console.warn("⚠️ Could not trim the finished tale:", details.trim_error)
+      }
       if (isTooLong(finalResult.duration)) {
-        console.warn(
-          `⚠️ Fallback render is ${finalResult.duration}s but the narration is ${audioDuration}s; trim still not applied`,
-        )
+        console.warn(`⚠️ Tale is still ${finalResult.duration}s for a ${audioDuration}s narration`)
       }
     }
+    details.final_seconds = finalResult.duration ?? null
 
     console.log("✅ STEP 6 COMPLETED - Final transformation with WHISPER HYBRID SUBTITLES:")
     console.log("  - Final Public ID:", finalResult.public_id)
@@ -1369,6 +1497,7 @@ async function createMergedVideoWithCloudinarySubtitles(
         bytes: verification.bytes,
         approach: "8_step_whisper_hybrid_readable_captions_mobile_optimized",
         captionsIncluded,
+        details: { ...details, final_seconds: verification.duration ?? details.final_seconds },
       }
     } catch (verifyError) {
       console.warn("⚠️ Final asset verification failed, using upload result:", verifyError)
@@ -1380,13 +1509,16 @@ async function createMergedVideoWithCloudinarySubtitles(
         bytes: finalResult.bytes,
         approach: "8_step_whisper_hybrid_readable_captions_mobile_optimized_unverified",
         captionsIncluded,
+        details,
       }
     }
   } catch (error) {
     console.error(`❌ 8-step process failed at ${currentStep}:`, error)
+    const message = `${currentStep}: ${describeError(error, "8-step merged video creation with Whisper HYBRID subtitles failed")}`
     return {
       success: false,
-      error: `${currentStep}: ${describeError(error, "8-step merged video creation with Whisper HYBRID subtitles failed")}`,
+      error: message,
+      details: { ...details, failed_at: currentStep, error: message },
     }
   }
 }
@@ -1575,6 +1707,8 @@ export async function POST(request: NextRequest) {
       entryId,
       watermark,
     )
+
+    await saveMergeDetails(entryId, result.details)
 
     if (!result.success) {
       // Update to failed
