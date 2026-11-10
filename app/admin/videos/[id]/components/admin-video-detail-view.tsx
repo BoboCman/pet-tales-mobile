@@ -406,6 +406,12 @@ export default function AdminVideoDetailView({ videoId }: AdminVideoDetailViewPr
                   {data.video.cost.renders === 1 ? "" : "s"}
                   {data.video.cost.runs > 1 ? ` in ${data.video.cost.runs} runs (Redo or retry)` : ""}
                 </div>
+                {(data.video.cost.sizes?.upload || data.video.cost.sizes?.compressed || data.video.cost.sizes?.final) && (
+                  <div className="text-xs text-gray-500">
+                    Size: upload {data.video.cost.sizes.upload ?? "?"}, 720p copy {data.video.cost.sizes.compressed ?? "?"},
+                    tale {data.video.cost.sizes.final ?? "?"} (over 921,600 pixels is billed as HD)
+                  </div>
+                )}
               </div>
             )}
             {data.video.health && (

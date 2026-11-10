@@ -21,15 +21,26 @@ cloudinary.config({
  * tries to render the full original on the fly and large uploads fail with "Video is too
  * large to process synchronously".
  */
+// Fit inside 720x1280 (921,600 pixels). Cloudinary bills video above that as HD, at twice the SD rate
+// (https://cloudinary.com/documentation/transformation_counts). A width-only scale let tall phone
+// clips (e.g. 1080x2400) come out 720x1600, which is HD. "limit" keeps the shape and never upscales.
 export const COMPRESS_EAGER = {
   width: 720,
-  crop: "scale",
+  height: 1280,
+  crop: "limit",
   video_codec: "h264",
   audio_codec: "aac",
   format: "mp4",
 } as const
 
-type EagerItem = { secure_url?: string; status?: string; reason?: string; transformation?: string }
+type EagerItem = {
+  secure_url?: string
+  status?: string
+  reason?: string
+  transformation?: string
+  width?: number
+  height?: number
+}
 
 /** Returns the ready URL, or null while the copy is still being rendered. */
 export function readyEagerUrl(payload: { notification_type?: string; eager?: EagerItem[] }): string | null {
@@ -54,14 +65,19 @@ export function eagerFailure(payload: { notification_type?: string; eager?: Eage
 /**
  * Ask Cloudinary directly whether the 720p copy exists. Used when a notification went missing,
  * so nothing has to wait on a webhook that will never come. The Admin API lists rendered
- * derivatives under `derived`; a 720p copy shows up there as e.g. "c_scale,vc_h264,ac_aac,w_720/mp4".
+ * derivatives under `derived`; a 720p copy shows up there as e.g. "ac_aac,c_limit,h_1280,vc_h264,w_720/mp4".
  */
 export async function findCompressedCopy(publicId: string): Promise<string | null> {
   const resource: any = await cloudinary.api.resource(publicId, { resource_type: "video" })
   const derived: Array<{ transformation?: string; format?: string; secure_url?: string }> = resource?.derived || []
   const match = derived.find((d) => {
     const t = d.transformation || ""
-    return t.includes("w_720") && t.includes("c_scale") && (d.format === "mp4" || t.endsWith("/mp4"))
+    // c_limit,h_1280 since Nov 2026; c_scale on older uploads
+    return (
+      t.includes("w_720") &&
+      (t.includes("c_limit") || t.includes("c_scale")) &&
+      (d.format === "mp4" || t.endsWith("/mp4"))
+    )
   })
   return match?.secure_url || null
 }

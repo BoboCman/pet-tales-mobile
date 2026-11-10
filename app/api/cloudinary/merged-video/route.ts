@@ -613,6 +613,8 @@ async function uploadWithEagerAsync(
   secure_url?: string
   duration?: number
   bytes?: number
+  width?: number
+  height?: number
   hasAudio?: boolean
   error?: string
 }> {
@@ -641,6 +643,8 @@ async function uploadWithEagerAsync(
       secure_url: result.secure_url,
       duration: result.duration,
       bytes: result.bytes,
+      width: result.width,
+      height: result.height,
       // Cloudinary returns `audio: {}` for a video with no audio track
       hasAudio: result.audio ? Boolean(result.audio.codec) : undefined,
     }
@@ -707,6 +711,8 @@ async function uploadWithEagerAsync(
       secure_url: stored.secure_url,
       duration: stored.duration,
       bytes: stored.bytes,
+      width: stored.width,
+      height: stored.height,
       hasAudio: stored.audio ? Boolean(stored.audio.codec) : undefined,
     }
   }
@@ -1124,6 +1130,8 @@ async function trimStoredVideo(publicId: string, seconds: number) {
     secure_url: stored.secure_url as string,
     duration: stored.duration as number | undefined,
     bytes: stored.bytes as number | undefined,
+    width: stored.width as number | undefined,
+    height: stored.height as number | undefined,
   }
 }
 
@@ -1177,8 +1185,8 @@ async function createMergedVideoWithCloudinarySubtitles(
   let currentStep = "STEP 1 (audio upload / captions)"
   const mergeStartedAt = Date.now()
   const details: Record<string, any> = { started_at: new Date().toISOString(), renders: [] }
-  const noteRender = (step: string, r: { duration?: number; bytes?: number } | undefined) => {
-    details.renders.push({ step, seconds: r?.duration ?? null, bytes: r?.bytes ?? null })
+  const noteRender = (step: string, r: { duration?: number; bytes?: number; width?: number; height?: number } | undefined) => {
+    details.renders.push({ step, seconds: r?.duration ?? null, bytes: r?.bytes ?? null, width: r?.width ?? null, height: r?.height ?? null })
   }
   try {
     console.log("🎬 8-STEP PROCESS: Creating merged video with WHISPER HYBRID SUBTITLE OVERLAY...")
@@ -1224,6 +1232,11 @@ async function createMergedVideoWithCloudinarySubtitles(
     console.log("🔹 STEP 2: Getting video duration and calculating loops...")
     const uploadClipSeconds = Number((existingEntry as any)?.merge_details?.upload_clip_seconds) || null
     if (uploadClipSeconds) details.upload_clip_seconds = uploadClipSeconds
+    // Sizes saved by the compress webhook (cost check: SD vs HD); keep them in this run's log
+    for (const key of ["upload_size", "compressed_size"]) {
+      const value = (existingEntry as any)?.merge_details?.[key]
+      if (typeof value === "string") details[key] = value
+    }
     const videoDuration = await getVideoDuration(videoPublicId, uploadClipSeconds, details)
     const loopCount = Math.max(1, Math.ceil(audioDuration / videoDuration))
     // Cloudinary's e_loop:N means N EXTRA plays (max 5), so e_loop:1 doubles the clip.
@@ -1506,6 +1519,8 @@ async function createMergedVideoWithCloudinarySubtitles(
             secure_url: stored.secure_url,
             duration: stored.duration,
             bytes: stored.bytes,
+            width: stored.width,
+            height: stored.height,
             hasAudio: stored.audio ? Boolean(stored.audio.codec) : undefined,
           }
         }
