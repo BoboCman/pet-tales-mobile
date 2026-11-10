@@ -341,37 +341,19 @@ export default function PricingClient({ pack, availablePlanIds }: PricingClientP
           })}
         </div>
 
-        {/* The fine print, in plain words */}
-        <section className="mx-auto mt-8 max-w-2xl rounded-2xl bg-white/70 p-5 md:mt-14 md:p-6">
-          <h2 className="text-base font-semibold text-gray-900">The fine print, in plain words</h2>
-          <ul className="mt-3 space-y-2.5 text-sm leading-relaxed text-gray-600">
-            <li>
-              <strong className="text-gray-800">Plans renew every month</strong> at the price shown until you cancel. You
-              can cancel anytime in Settings, and you keep your tales until the end of the month you paid for.
-            </li>
-            <li>
-              <strong className="text-gray-800">Unused plan tales roll over</strong> to next month, up to two months&apos;
-              worth. If your plan ends, any plan tales you haven&apos;t used end with it.
-            </li>
-            {pack && (
-              <li>
-                <strong className="text-gray-800">Pack tales never expire.</strong> We use your plan tales first, so pack
-                tales stay saved for later.
-              </li>
-            )}
-            <li>
-              <strong className="text-gray-800">All sales are final.</strong> Tales are ready to use the moment you pay,
-              so we can&apos;t offer refunds, except where our Terms say so (like a duplicate charge).
-            </li>
-            <li>
-              Prices are in US dollars, plus tax where it applies. By buying a pack or plan you agree to our{" "}
-              <a href="/terms" className="font-medium text-teal-700 underline underline-offset-4">
-                Terms of Service
-              </a>
-              .
-            </li>
-          </ul>
-        </section>
+        {/* Billing basics: short, but everything a renewing plan must disclose */}
+        <div className="mx-auto mt-8 max-w-md space-y-1 text-center text-xs leading-relaxed text-gray-500 md:mt-12 md:text-sm">
+          <p>Plans renew monthly until you cancel. Cancel anytime in Settings.</p>
+          <p>
+            Unused plan tales roll over, up to two months&apos; worth.{pack ? " Pack tales never expire." : ""}
+          </p>
+          <p>
+            Prices in USD. Payments are non-refundable.{" "}
+            <a href="/terms" className="underline underline-offset-2 hover:text-gray-700">
+              Terms
+            </a>
+          </p>
+        </div>
       </div>
     </>
   )
