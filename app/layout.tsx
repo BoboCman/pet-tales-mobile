@@ -1,5 +1,5 @@
 import type React from "react"
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import { Toaster } from "@/components/ui/toaster"
 import { SupabaseProvider } from "@/lib/supabase/provider"
@@ -84,11 +84,19 @@ export const metadata: Metadata = {
     canonical: siteUrl,
   },
   manifest: "/manifest.json",
+    generator: 'v0.app'
+}
+
+// viewport-fit=cover makes the safe-area insets real on iPhones, so the bottom nav sits above
+// the home indicator in the installed app instead of under it (where taps start a swipe)
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#0d9488" },
     { media: "(prefers-color-scheme: dark)", color: "#14b8a6" },
   ],
-    generator: 'v0.app'
 }
 
 export default function RootLayout({

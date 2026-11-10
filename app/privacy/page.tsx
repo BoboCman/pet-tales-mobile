@@ -17,11 +17,10 @@ export const metadata: Metadata = {
 
 /** Kinds of services that help us run Pet Tale (categories, as privacy laws require) */
 const PROVIDERS: { name: string; does: string }[] = [
-  { name: "Cloud hosting and storage", does: "Keeps your account, pet details, clips and tales safe" },
-  { name: "Video processing", does: "Turns your clip into the finished video" },
-  { name: "AI services", does: "Watch your clip, write your pet's story and captions, and voice the narration" },
+  { name: "Hosting and storage", does: "Keep your account and tales safe" },
+  { name: "Processing and AI services", does: "Help create your tales" },
   { name: "Payments", does: "Handle checkout and billing" },
-  { name: "Email", does: "Send your tale-ready emails, receipts and news" },
+  { name: "Email", does: "Send our emails" },
   { name: "Analytics", does: "Count visits so we know what's working" },
 ]
 
@@ -109,9 +108,8 @@ export default function PrivacyPage() {
           </table>
         </div>
         <p>
-          The AI services receive frames and audio from your clip, plus your pet&apos;s details, so they can make your
-          tale. Each one handles data under its own terms. Some may keep it for a while, for example to prevent abuse,
-          and some may use it to improve their services.
+          These services get only what they need to create your tale. Each handles data under its own terms, and
+          some may keep it for a while or use it to improve their services.
         </p>
         <p>
           <strong>Your tales.</strong> Tales are private until you share them. Anyone with a share link can watch
@@ -127,10 +125,8 @@ export default function PrivacyPage() {
 
       <LegalSection id="faces" title="4. No face recognition">
         <p>
-          Our AI looks at what&apos;s happening in your clip, mostly your pet, to tell the story. We don&apos;t use
-          facial recognition, we don&apos;t create biometric data like face or voice prints, and we don&apos;t
-          identify or profile the people in your clips. Our narration voices are synthetic and aren&apos;t copied from
-          real people.
+          We don&apos;t use facial recognition, we don&apos;t create biometric data like face or voice prints, and
+          we don&apos;t identify or profile the people in your clips.
         </p>
       </LegalSection>
 

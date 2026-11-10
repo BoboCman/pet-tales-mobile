@@ -96,52 +96,21 @@
     position: relative;
   }
 
-  /* Bottom navigation styling - removed display: block !important to allow JavaScript hiding */
-  [data-bottom-nav] {
-    position: fixed !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    z-index: 9999 !important;
-    background-color: rgb(13 148 136) !important; /* teal-600 */
-    border-top: 1px solid rgb(15 118 110) !important; /* teal-700 */
-  }
-
-  /* When bottom nav is hidden by video player, ensure it's completely invisible */
-  [data-bottom-nav][style*="display: none"],
-  [data-bottom-nav][style*="visibility: hidden"] {
-    display: none !important;
-    visibility: hidden !important;
-    opacity: 0 !important;
-  }
-
   /* Add padding to main content to account for bottom nav */
   main {
-    padding-bottom: calc(70px + env(safe-area-inset-bottom, 24px)) !important;
+    padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* Only the outer page main needs it (dashboard pages nest a second main) */
+  main main {
+    padding-bottom: 0 !important;
   }
 
   /* Prevent content from being hidden behind bottom nav */
   .pb-bottom-nav {
-    padding-bottom: calc(70px + env(safe-area-inset-bottom, 24px)) !important;
+    padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
-  /* Ensure proper touch targets for mobile navigation */
-  [data-bottom-nav] a {
-    min-height: 44px;
-    min-width: 44px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 8px 4px;
-    color: rgb(204 251 241) !important; /* teal-100 */
-  }
-
-  /* Active state for navigation items */
-  [data-bottom-nav] a.active,
-  [data-bottom-nav] a[aria-current="page"] {
-    color: white !important;
-  }
 }
 
 /* Desktop styles */
@@ -153,23 +122,6 @@
   main {
     padding-bottom: 0 !important;
   }
-}
-
-/* Fix for iOS Safari bottom safe area */
-@supports (padding-bottom: env(safe-area-inset-bottom)) {
-  [data-bottom-nav] {
-    padding-bottom: env(safe-area-inset-bottom, 24px);
-  }
-}
-
-/* Prevent flash of unstyled content */
-.bottom-nav-loading {
-  opacity: 0;
-  transition: opacity 0.2s ease-in-out;
-}
-
-.bottom-nav-loaded {
-  opacity: 1;
 }
 
 /* Ensure proper stacking context */

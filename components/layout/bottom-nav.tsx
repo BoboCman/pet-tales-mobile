@@ -1,254 +1,180 @@
 "use client"
 
-import type React from "react"
-import { usePathname, useRouter } from "next/navigation"
-import { Home, Video, Users, Settings, LogIn, PawPrint, Plus } from "lucide-react"
-import { useState, useEffect, useCallback } from "react"
-import { createClient } from "@/lib/supabase/client"
-import { useMobile } from "@/hooks/use-mobile"
 import Link from "next/link"
+import { usePathname, useRouter } from "next/navigation"
+import { useEffect, useRef, useState } from "react"
+import { Home, Video, Users, Settings, LogIn, PawPrint, Plus, type LucideIcon } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+
+/**
+ * Mobile bottom tab bar (hidden from md up by CSS, so it is tappable from the first paint).
+ *
+ * Built for one-tap navigation in the installed PWA:
+ * - The tab lights up the moment it is touched, before the next page arrives.
+ * - Tabs are stable elements (no components defined inside render), so a re-render mid-tap
+ *   never swallows the click.
+ * - The last known signed-in state is remembered on the device, so the real tabs show
+ *   immediately instead of an untappable placeholder.
+ * - The auth listener is set up once, not on every route change.
+ */
+
+type Tab = { href: string; label: string; icon: LucideIcon; match: (path: string) => boolean }
+
+const SIGNED_IN_TABS: Tab[] = [
+  {
+    href: "/dashboard/reels",
+    label: "Tales",
+    icon: Video,
+    match: (p) => p.startsWith("/dashboard/reels") && p !== "/dashboard/reels/new",
+  },
+  { href: "/dashboard/pets", label: "Pets", icon: PawPrint, match: (p) => p.startsWith("/dashboard/pets") },
+  { href: "/dashboard/reels/new", label: "Create", icon: Plus, match: (p) => p === "/dashboard/reels/new" },
+  { href: "/community/public", label: "Community", icon: Users, match: (p) => p.startsWith("/community") },
+  {
+    href: "/dashboard/settings",
+    label: "Settings",
+    icon: Settings,
+    match: (p) => p.startsWith("/dashboard/settings"),
+  },
+]
+
+const SIGNED_OUT_TABS: Tab[] = [
+  { href: "/", label: "Home", icon: Home, match: (p) => p === "/" },
+  { href: "/community/public", label: "Community", icon: Users, match: (p) => p.startsWith("/community") },
+  { href: "/auth/login", label: "Sign In", icon: LogIn, match: (p) => p.startsWith("/auth") },
+]
+
+/** Full-screen pages that bring their own controls: the tale viewers and the new tale screen */
+function isHiddenOn(path: string) {
+  return /^\/community\/public\/[^/]+$/.test(path) || /^\/dashboard\/reels\/[^/]+$/.test(path)
+}
+
+const AUTH_CACHE_KEY = "pettale:signed-in"
+
+function readCachedAuth(): boolean | null {
+  try {
+    const v = window.localStorage.getItem(AUTH_CACHE_KEY)
+    return v === "1" ? true : v === "0" ? false : null
+  } catch {
+    return null
+  }
+}
+
+function writeCachedAuth(signedIn: boolean) {
+  try {
+    window.localStorage.setItem(AUTH_CACHE_KEY, signedIn ? "1" : "0")
+  } catch {
+    // Private mode or blocked storage: the nav still works, it just waits for the session.
+  }
+}
+
+const BAR_CLASS =
+  "fixed inset-x-0 bottom-0 z-[9999] select-none border-t border-teal-700 bg-teal-600 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] md:hidden"
 
 export function BottomNav() {
-  const pathname = usePathname()
+  const pathname = usePathname() || "/"
   const router = useRouter()
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const isMobile = useMobile()
-  const supabase = createClient()
+  const [signedIn, setSignedIn] = useState<boolean | null>(null)
+  // The tab the user just tapped, shown as active until the new route takes over
+  const [pendingHref, setPendingHref] = useState<string | null>(null)
 
-  // Memoized auth check function
-  const checkAuthState = useCallback(async () => {
-    try {
-      const {
-        data: { session },
-        error,
-      } = await supabase.auth.getSession()
-
-      if (error) {
-        console.error("Auth check error:", error)
-        setIsAuthenticated(false)
-      } else {
-        setIsAuthenticated(!!session)
-      }
-    } catch (error) {
-      console.error("Failed to check auth state:", error)
-      setIsAuthenticated(false)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [supabase])
+  const pathnameRef = useRef(pathname)
+  pathnameRef.current = pathname
 
   useEffect(() => {
-    // Initial auth check
-    checkAuthState()
+    setPendingHref(null)
+  }, [pathname])
 
-    // Listen for auth changes
+  useEffect(() => {
+    const cached = readCachedAuth()
+    if (cached !== null) setSignedIn(cached)
+
+    const supabase = createClient()
+    let known: boolean | null = null
+
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event, !!session)
-      setIsAuthenticated(!!session)
-      setIsLoading(false)
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      const now = !!session
+      const was = known
+      known = now
+      setSignedIn(now)
+      writeCachedAuth(now)
 
-      // Handle sign out
-      if (event === "SIGNED_OUT") {
+      // Only react to real changes. Supabase repeats SIGNED_IN when the app comes back to the
+      // foreground, and redirecting then would cancel whatever the user just tapped.
+      if (event === "SIGNED_OUT" && was === true) {
         router.push("/")
-      }
-
-      // Handle sign in - redirect to pets dashboard
-      if (event === "SIGNED_IN" && session) {
-        // Small delay to ensure the UI updates properly
-        setTimeout(() => {
-          if (pathname.startsWith("/auth/")) {
-            router.push("/dashboard/pets")
-          }
-        }, 100)
+      } else if (event === "SIGNED_IN" && now && was === false && pathnameRef.current.startsWith("/auth/")) {
+        router.push("/dashboard/pets")
       }
     })
 
-    return () => {
-      subscription.unsubscribe()
-    }
-  }, [supabase, router, pathname, checkAuthState])
+    return () => subscription.unsubscribe()
+  }, [router])
 
-  // Helper function to determine if a nav item is active
-  const isActive = useCallback(
-    (path: string) => {
-      if (path === "/" && pathname === "/") {
-        return true
-      }
-      if (path === "/dashboard/pets" && (pathname === "/dashboard/pets" || pathname.startsWith("/dashboard/pets"))) {
-        return true
-      }
-      if (path === "/dashboard/reels/new") {
-        return pathname === "/dashboard/reels/new"
-      }
-      if (path === "/dashboard/reels" && pathname.startsWith("/dashboard/reels") && pathname !== "/dashboard/reels/new") {
-        return true
-      }
-      if (path === "/community/public" && pathname.startsWith("/community")) {
-        return true
-      }
-      if (path === "/dashboard/settings" && pathname.startsWith("/dashboard/settings")) {
-        return true
-      }
-      if (path !== "/" && path !== "/dashboard/pets" && path !== "/community/public" && pathname.startsWith(path)) {
-        return true
-      }
-      return false
-    },
-    [pathname],
-  )
+  if (isHiddenOn(pathname)) return null
 
-  // Check if we're on a public tale viewer page
-  const isPublicTaleViewer = pathname.match(/^\/community\/public\/[^/]+$/)
-
-  const isPrivateTaleViewer = pathname.match(/^\/dashboard\/reels\/[^/]+$/)
-
-  // Common navigation item component
-  const NavItem = ({ path, icon, label }: { path: string; icon: React.ReactNode; label: string }) => {
-    const active = isActive(path)
-    return (
-      <Link
-        href={path}
-        className={`
-          inline-flex flex-col items-center justify-start pt-3 relative min-h-[60px]
-          transition-colors duration-200 ease-in-out
-          ${active ? "text-white" : "text-teal-100 hover:text-white"}
-        `}
-        style={{
-          touchAction: "manipulation",
-          WebkitTapHighlightColor: "transparent",
-        }}
-      >
-        <div className="mb-0.5 flex-shrink-0">{icon}</div>
-        <span className="text-xs font-medium leading-none text-center">{label}</span>
-        {active && (
-          <div
-            className="absolute bottom-1 h-1 w-6 bg-white rounded-full"
-            style={{
-              transition: "opacity 0.2s ease-in-out",
-              opacity: 1,
-            }}
-          />
-        )}
-      </Link>
-    )
+  // First visit on this device, before the session is known: same size bar, no fake buttons
+  if (signedIn === null) {
+    return <div data-bottom-nav="loading" aria-hidden className={BAR_CLASS}><div className="h-[70px]" /></div>
   }
 
-  // Debug logging (remove in production)
-  console.log("BottomNav render:", {
-    isMobile,
-    isAuthenticated,
-    isLoading,
-    pathname,
-    isPublicTaleViewer,
-    isPrivateTaleViewer,
-  })
+  const tabs = signedIn ? SIGNED_IN_TABS : SIGNED_OUT_TABS
+  const activePath = pendingHref ?? pathname
 
-  // Don't render the bottom nav on desktop
-  if (!isMobile) {
-    return null
-  }
-
-  // Don't render the bottom nav when viewing public tales
-  if (isPublicTaleViewer) {
-    return null
-  }
-
-  if (isPrivateTaleViewer) {
-    return null
-  }
-
-  // Show loading state briefly to prevent flash
-  if (isLoading) {
-    return (
-      <div
-        data-bottom-nav="loading"
-        className="fixed bottom-0 left-0 right-0 z-[9999] border-t border-teal-700 bg-teal-600 pb-[env(safe-area-inset-bottom,24px)] md:hidden"
-        style={{
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          zIndex: 9999,
-        }}
-      >
-        <div className="grid h-[70px] grid-cols-3 animate-pulse">
-          <div className="flex flex-col items-center justify-center">
-            <div className="w-5 h-5 bg-teal-400 rounded mb-1"></div>
-            <div className="w-8 h-2 bg-teal-400 rounded"></div>
-          </div>
-          <div className="flex flex-col items-center justify-center">
-            <div className="w-5 h-5 bg-teal-400 rounded mb-1"></div>
-            <div className="w-12 h-2 bg-teal-400 rounded"></div>
-          </div>
-          <div className="flex flex-col items-center justify-center">
-            <div className="w-5 h-5 bg-teal-400 rounded mb-1"></div>
-            <div className="w-10 h-2 bg-teal-400 rounded"></div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // For non-authenticated users
-  if (!isAuthenticated) {
-    return (
-      <div
-        data-bottom-nav="unauthenticated"
-        className="fixed bottom-0 left-0 right-0 z-[9999] border-t border-teal-700 bg-teal-600 pb-[env(safe-area-inset-bottom,24px)] md:hidden"
-        style={{
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          zIndex: 9999,
-        }}
-      >
-        <div className="grid h-[70px] grid-cols-3">
-          <NavItem path="/" icon={<Home className="w-5 h-5" />} label="Home" />
-          <NavItem path="/community/public" icon={<Users className="w-5 h-5" />} label="Community" />
-          <NavItem path="/auth/login" icon={<LogIn className="w-5 h-5" />} label="Sign In" />
-        </div>
-      </div>
-    )
-  }
-
-  // For authenticated users
   return (
-    <div
-      data-bottom-nav="authenticated"
-      className="fixed bottom-0 left-0 right-0 z-[9999] border-t border-teal-700 bg-teal-600 pb-[env(safe-area-inset-bottom,24px)] md:hidden"
-      style={{
-        position: "fixed",
-        bottom: 0,
-        left: 0,
-        right: 0,
-        zIndex: 9999,
-      }}
+    <nav
+      data-bottom-nav={signedIn ? "authenticated" : "unauthenticated"}
+      aria-label="Main"
+      className={BAR_CLASS}
     >
-      <div className="grid h-[70px] grid-cols-5">
-        <NavItem path="/dashboard/reels" icon={<Video className="w-5 h-5" />} label="Tales" />
-        <NavItem path="/dashboard/pets" icon={<PawPrint className="w-5 h-5" />} label="Pets" />
-        <Link
-          href="/dashboard/reels/new"
-          aria-label="Create a new tale"
-          className="flex flex-col items-center justify-start pt-1.5"
-          style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
-        >
-          <span
-            className={`flex items-center justify-center w-12 h-12 rounded-full shadow-lg ${
-              isActive("/dashboard/reels/new") ? "bg-teal-100 text-teal-700" : "bg-white text-teal-600"
-            }`}
-          >
-            <Plus className="w-7 h-7" strokeWidth={2.5} />
-          </span>
-          <span className="text-xs font-medium leading-none text-white mt-1">Create</span>
-        </Link>
-        <NavItem path="/community/public" icon={<Users className="w-5 h-5" />} label="Community" />
-        <NavItem path="/dashboard/settings" icon={<Settings className="w-5 h-5" />} label="Settings" />
-      </div>
-    </div>
+      <ul className={`grid h-[70px] ${signedIn ? "grid-cols-5" : "grid-cols-3"}`}>
+        {tabs.map((tab) => {
+          const active = pendingHref ? tab.href === pendingHref : tab.match(activePath)
+          const Icon = tab.icon
+          const isCreate = tab.href === "/dashboard/reels/new"
+          return (
+            <li key={tab.href} className="flex">
+              <Link
+                href={tab.href}
+                aria-current={active ? "page" : undefined}
+                aria-label={isCreate ? "Create a new tale" : undefined}
+                onClick={() => {
+                  if (!tab.match(pathname)) setPendingHref(tab.href)
+                }}
+                className={`group flex h-full w-full flex-col items-center justify-center gap-1 outline-none [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none] [touch-action:manipulation] focus-visible:bg-white/10 ${
+                  active ? "text-white" : "text-teal-100"
+                }`}
+              >
+                {isCreate ? (
+                  // Same 32px slot as the other icons so every label lines up; the circle overflows it
+                  <span className="flex h-8 items-center">
+                    <span
+                      className={`flex h-10 w-10 -translate-y-1 items-center justify-center rounded-full shadow-lg transition-transform duration-100 group-active:scale-90 ${
+                        active ? "bg-teal-100 text-teal-700" : "bg-white text-teal-600"
+                      }`}
+                    >
+                      <Plus className="h-6 w-6" strokeWidth={2.5} />
+                    </span>
+                  </span>
+                ) : (
+                  <span
+                    className={`flex h-8 w-14 items-center justify-center rounded-full transition-[transform,background-color] duration-100 group-active:scale-90 group-active:bg-white/15 ${
+                      active ? "bg-white/20" : ""
+                    }`}
+                  >
+                    <Icon className="h-5 w-5" strokeWidth={active ? 2.5 : 2} />
+                  </span>
+                )}
+                <span className={`text-[11px] leading-none ${active ? "font-semibold" : "font-medium"}`}>
+                  {tab.label}
+                </span>
+              </Link>
+            </li>
+          )
+        })}
+      </ul>
+    </nav>
   )
 }
