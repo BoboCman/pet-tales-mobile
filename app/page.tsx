@@ -7,6 +7,7 @@ import { CommunityStrip } from "@/components/landing/community-strip"
 import { NARRATION_GENRES } from "@/lib/narration-genres"
 import { UNIVERSAL_VOICES } from "@/lib/voice-personalities"
 import { VoicesVibesSheet } from "@/components/landing/voices-vibes-sheet"
+import { TRY_PACK, packsEnabled } from "@/lib/stripe/pack-config"
 
 // Only what the sheet shows (keeps provider voice ids out of the page)
 const SHEET_VOICES = UNIVERSAL_VOICES.map(({ value, emoji, label, description }) => ({
@@ -47,6 +48,19 @@ export default async function Home() {
   const session = await getSession()
   const ctaHref = session ? "/dashboard/reels/new" : "/auth/signup?ref=landing"
   const ctaLabel = session ? "Make a tale" : "Make your first tale free"
+  // The 3-tale pack is mentioned only once it is on sale (SHOW_CREDIT_PACKS=true)
+  const showPack = packsEnabled()
+  const priceLine = showPack
+    ? `Then ${TRY_PACK.tales} tales for $${TRY_PACK.price}, or plans from $4.99 a month`
+    : "Plans from $4.99 a month · Nothing to download"
+  const faq = FAQ.map((item) =>
+    showPack && item.q === "What does it cost after that?"
+      ? {
+          ...item,
+          a: `Get ${TRY_PACK.tales} tales for $${TRY_PACK.price} with no subscription, or a plan from $4.99 a month for 10 tales. Cancel anytime in Settings.`,
+        }
+      : item,
+  )
 
   return (
     <div className="flex min-h-screen flex-col bg-white dark:bg-gray-950">
@@ -107,7 +121,7 @@ export default async function Home() {
               >
                 {ctaLabel}
               </Link>
-              <p className="mt-3 text-sm text-gray-500">Plans from $4.99 a month · Nothing to download</p>
+              <p className="mt-3 text-sm text-gray-500">{priceLine}</p>
             </div>
 
             <div className="mx-auto w-full max-w-[260px] sm:max-w-xs">
@@ -220,7 +234,7 @@ export default async function Home() {
           <div className="mx-auto max-w-2xl">
             <h2 className="text-center text-2xl font-bold text-gray-900 dark:text-white">Good to know</h2>
             <div className="mt-6 divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-100 dark:divide-gray-800 dark:border-gray-800">
-              {FAQ.map((item) => (
+              {faq.map((item) => (
                 <details key={item.q} className="group px-4 py-2 [&_summary::-webkit-details-marker]:hidden">
                   <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-4 font-medium text-gray-900 dark:text-white">
                     {item.q}

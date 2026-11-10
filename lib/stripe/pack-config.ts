@@ -15,6 +15,25 @@ export interface CreditPack {
   active: boolean
 }
 
+/** The one-time pack offered at launch: 3 tales for $2.99 (row in credit_packs, id "try_pack") */
+export const TRY_PACK = { id: "try_pack", tales: 3, price: 2.99 } as const
+
+/**
+ * Server-only: the Stripe price to charge for a pack. STRIPE_PACK_<ID>_PRICE_ID (e.g.
+ * STRIPE_PACK_TRY_PACK_PRICE_ID) wins over credit_packs.stripe_price_id, so the price can live in
+ * Vercel with the plan prices instead of in the table.
+ */
+export function getPackPriceId(pack: Pick<CreditPack, "id" | "stripe_price_id">): string | null {
+  const fromEnv = process.env[`STRIPE_PACK_${pack.id.toUpperCase()}_PRICE_ID`]?.trim()
+  if (fromEnv) return fromEnv
+  return pack.stripe_price_id?.startsWith("price_") ? pack.stripe_price_id : null
+}
+
+/** Server-only: packs are shown and sold only when SHOW_CREDIT_PACKS=true */
+export function packsEnabled(): boolean {
+  return process.env.SHOW_CREDIT_PACKS === "true"
+}
+
 /**
  * Fetch all active credit packs from the database
  *

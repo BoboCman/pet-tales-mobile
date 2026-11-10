@@ -404,7 +404,7 @@ export default function TermsPage() {
               </p>
               <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300 ml-4">
                 <li>Pet Parent: 10 credits per month for $4.99 per month</li>
-                <li>Super Fan: 20 credits per month for $9.99 per month</li>
+                <li>Super Fan: 25 credits per month for $9.99 per month</li>
               </ul>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed mt-4">
                 <strong>Automatic renewal:</strong> Plans renew automatically each month and your payment method is

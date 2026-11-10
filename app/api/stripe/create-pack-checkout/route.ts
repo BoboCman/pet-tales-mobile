@@ -3,7 +3,7 @@ import { stripe } from "@/lib/stripe"
 import { getOrCreateStripeCustomer } from "@/lib/stripe/customer"
 import { createClient } from "@/lib/supabase/server"
 import { formatStripeError } from "@/lib/stripe-errors"
-import { getPackById } from "@/lib/stripe/pack-config"
+import { getPackById, getPackPriceId, packsEnabled } from "@/lib/stripe/pack-config"
 import { isStripeTestMode, TEST_CARD_INFO } from "@/lib/stripe/test-mode"
 import { getAppBaseUrl } from "@/lib/utils/app-url"
 
@@ -72,6 +72,14 @@ export async function POST(request: Request) {
       )
     }
 
+    const priceId = getPackPriceId(pack)
+    if (!packsEnabled() || !priceId) {
+      return NextResponse.json(
+        { error: "Pack not available", message: "Tale packs aren't available right now" },
+        { status: 404 },
+      )
+    }
+
     if (!pack.active) {
       return NextResponse.json(
         {
@@ -101,7 +109,7 @@ export async function POST(request: Request) {
       payment_method_types: ["card"],
       line_items: [
         {
-          price: pack.stripe_price_id,
+          price: priceId,
           quantity: 1,
         },
       ],
