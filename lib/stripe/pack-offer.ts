@@ -9,6 +9,7 @@ import { getAllPacks, getPackPriceId, packsEnabled, type CreditPack } from "@/li
  * A pack is on sale when SHOW_CREDIT_PACKS=true, its credit_packs row is active, and it has a
  * Stripe price. The price comes from, in order:
  *   1. STRIPE_PACK_<ID>_PRICE_ID (e.g. STRIPE_PACK_TRY_PACK_PRICE_ID) or STRIPE_<ID>_PRICE_ID
+ *      (a prod_ product ID there is turned into that product's price)
  *   2. credit_packs.stripe_price_id when it is a real price_ id
  *   3. an active one-time USD price in Stripe with the pack's amount (found once, then cached)
  * Step 3 means a typo in the env var name doesn't silently hide the pack.
@@ -40,12 +41,45 @@ async function findStripePriceByAmount(cents: number): Promise<string | null> {
   return stripeLookup.byAmount.get(cents) ?? null
 }
 
+const productLookup = new Map<string, { at: number; priceId: string | null }>()
+
+/**
+ * A product ID was pasted where a price ID belongs (an easy mix-up in the Stripe dashboard).
+ * Use that product's one-time price with the pack's amount, else its default price.
+ */
+async function priceForProduct(productId: string, cents: number): Promise<string | null> {
+  const hit = productLookup.get(productId)
+  if (hit && Date.now() - hit.at < CACHE_MS) return hit.priceId
+  if (!process.env.STRIPE_SECRET_KEY) return null
+  try {
+    const { stripe } = await import("@/lib/stripe")
+    const prices = await stripe.prices.list({ product: productId, active: true, limit: 100 })
+    const oneTime = prices.data.filter((p) => p.type === "one_time")
+    const product = await stripe.products.retrieve(productId)
+    const defaultId = typeof product.default_price === "string" ? product.default_price : product.default_price?.id
+    const priceId =
+      oneTime.find((p) => p.unit_amount === cents)?.id ??
+      oneTime.find((p) => p.id === defaultId)?.id ??
+      oneTime[0]?.id ??
+      null
+    productLookup.set(productId, { at: Date.now(), priceId })
+    return priceId
+  } catch (error) {
+    console.error(`[pack-offer] Could not find a price for product ${productId}:`, error)
+    return null
+  }
+}
+
 /** The Stripe price to charge for a pack, and where it came from */
 export async function resolvePackPrice(
   pack: Pick<CreditPack, "id" | "stripe_price_id" | "price_cents">,
 ): Promise<{ priceId: string; source: string } | null> {
   const direct = getPackPriceId(pack)
-  if (direct) return { priceId: direct, source: "Vercel env var or credit_packs.stripe_price_id" }
+  if (direct?.startsWith("price_")) return { priceId: direct, source: "Vercel env var or credit_packs.stripe_price_id" }
+  if (direct?.startsWith("prod_")) {
+    const fromProduct = await priceForProduct(direct, pack.price_cents)
+    if (fromProduct) return { priceId: fromProduct, source: `price of Stripe product ${direct} (a product ID was set, not a price ID)` }
+  }
   const found = await findStripePriceByAmount(pack.price_cents)
   if (found) return { priceId: found, source: `Stripe one-time price for ${pack.price_cents} cents` }
   return null
