@@ -81,56 +81,7 @@ export function PublicTaleViewer({ tale }: PublicTaleViewerProps) {
       ? `${window.location.origin}/community/public/${tale.id}`
       : `https://www.pettaleai.com/community/public/${tale.id}`
 
-  useEffect(() => {
-    console.log("🎬 PublicTaleViewer mounted - hiding bottom nav")
-
-    const selectors = [
-      "[data-bottom-nav]",
-      '[data-bottom-nav="authenticated"]',
-      '[data-bottom-nav="unauthenticated"]',
-      '[data-bottom-nav="loading"]',
-    ]
-
-    let bottomNavElement: HTMLElement | null = null
-
-    for (const selector of selectors) {
-      bottomNavElement = document.querySelector(selector) as HTMLElement
-      if (bottomNavElement) {
-        console.log(`✅ Found bottom nav with selector: ${selector}`)
-        break
-      }
-    }
-
-    let originalDisplay = ""
-    let originalVisibility = ""
-    let originalOpacity = ""
-
-    if (bottomNavElement) {
-      originalDisplay = bottomNavElement.style.display || ""
-      originalVisibility = bottomNavElement.style.visibility || ""
-      originalOpacity = bottomNavElement.style.opacity || ""
-
-      bottomNavElement.style.display = "none"
-      bottomNavElement.style.visibility = "hidden"
-      bottomNavElement.style.opacity = "0"
-
-      console.log("🚫 Bottom nav hidden successfully")
-    } else {
-      console.warn("⚠️ Bottom nav element not found with any selector")
-    }
-
-    return () => {
-      console.log("🔄 PublicTaleViewer unmounting - restoring bottom nav")
-
-      if (bottomNavElement) {
-        bottomNavElement.style.display = originalDisplay
-        bottomNavElement.style.visibility = originalVisibility
-        bottomNavElement.style.opacity = originalOpacity
-
-        console.log("✅ Bottom nav restored successfully")
-      }
-    }
-  }, [])
+  // The bottom nav hides itself on this route (see isHiddenOn in components/layout/bottom-nav.tsx)
 
   useEffect(() => {
     const video = videoRef.current
