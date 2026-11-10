@@ -2,14 +2,12 @@
 
 import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, Check, Coins, Loader2, PawPrint, Sparkles } from "lucide-react"
+import { AlertCircle, Check, Coins, Heart, Loader2, Sparkles } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { isStripeTestMode } from "@/lib/stripe/test-mode"
-import { FREE_TIER, formatUsd, subscriptionPlans, type PackOffer, type PlanId } from "@/lib/pricing-config"
+import { formatUsd, subscriptionPlans, type PackOffer, type PlanId } from "@/lib/pricing-config"
 
 interface PricingClientProps {
   /** The one-time pack on sale, or null (lib/stripe/pack-offer.ts) */
@@ -18,11 +16,102 @@ interface PricingClientProps {
   availablePlanIds: PlanId[]
 }
 
+/** One way to buy tales: the one-time pack or a monthly plan */
+interface PricingOption {
+  id: string
+  kind: "pack" | "plan"
+  name: string
+  tagline: string
+  price: string
+  /** "once" or "a month" */
+  cadence: string
+  /** Short line under the name in the phone list */
+  summary: string
+  badge?: string
+  highlight?: string
+  features: string[]
+  cta: string
+  reassurance: string
+  available: boolean
+  icon: typeof Coins
+}
+
+const petParent = subscriptionPlans.find((p) => p.id === "pet_parent")
+const superFan = subscriptionPlans.find((p) => p.id === "super_fan")
+
+/** Super Fan vs Pet Parent: how many more tales, and how much less each one costs */
+function superFanDeal() {
+  if (!petParent || !superFan) return null
+  const times = superFan.talesPerMonth / petParent.talesPerMonth
+  const perTaleSaving =
+    1 - superFan.monthlyPrice / superFan.talesPerMonth / (petParent.monthlyPrice / petParent.talesPerMonth)
+  const pct = Math.round(perTaleSaving * 100)
+  if (pct <= 0) return null
+  const timesLabel = Number.isInteger(times) ? `${times}×` : `${times.toFixed(1)}×`
+  return { pct, timesLabel }
+}
+
+function buildOptions(pack: PackOffer | null, availablePlanIds: PlanId[]): PricingOption[] {
+  const options: PricingOption[] = []
+  const deal = superFanDeal()
+
+  if (pack) {
+    options.push({
+      id: pack.id,
+      kind: "pack",
+      name: "Try pack",
+      tagline: "A few more tales, no strings attached",
+      price: formatUsd(pack.priceCents),
+      cadence: "once",
+      summary: `${pack.tales} tales, one time`,
+      features: [
+        `${pack.tales} tales to use whenever you like`,
+        "Pack tales never expire",
+        "All narrator voices and vibes",
+        "No subscription, nothing to cancel",
+      ],
+      cta: `Get ${pack.tales} tales for ${formatUsd(pack.priceCents)}`,
+      reassurance: "One payment. Nothing renews.",
+      available: true,
+      icon: Coins,
+    })
+  }
+
+  for (const plan of subscriptionPlans) {
+    const isSuperFan = plan.id === "super_fan"
+    options.push({
+      id: plan.id,
+      kind: "plan",
+      name: plan.name,
+      tagline: plan.description,
+      price: `$${plan.monthlyPrice.toFixed(2)}`,
+      cadence: "a month",
+      summary: `${plan.talesPerMonth} tales every month`,
+      badge: isSuperFan && deal ? `Save ${deal.pct}%` : undefined,
+      highlight:
+        isSuperFan && deal && petParent
+          ? `${deal.timesLabel} the tales of ${petParent.name}, so you save ${deal.pct}% on every tale.`
+          : undefined,
+      features: plan.features,
+      cta: `Get ${plan.name}`,
+      reassurance: "Renews monthly. Cancel anytime in Settings.",
+      available: availablePlanIds.includes(plan.id),
+      icon: isSuperFan ? Heart : Sparkles,
+    })
+  }
+
+  return options
+}
+
 export default function PricingClient({ pack, availablePlanIds }: PricingClientProps) {
   const [busyId, setBusyId] = useState<string | null>(null)
   const { toast } = useToast()
   const searchParams = useSearchParams()
 
+  const options = buildOptions(pack, availablePlanIds)
+  const featuredId = subscriptionPlans.find((p) => p.popular)?.id ?? options[0]?.id
+  const [selectedId, setSelectedId] = useState<string>(featuredId)
+  const selected = options.find((o) => o.id === selectedId) ?? options[0]
 
   useEffect(() => {
     const sessionId = searchParams.get("session_id")
@@ -81,6 +170,13 @@ export default function PricingClient({ pack, availablePlanIds }: PricingClientP
     }
   }
 
+  const buy = (option: PricingOption) =>
+    option.kind === "pack"
+      ? startCheckout(option.id, "/api/stripe/create-pack-checkout", { pack_id: option.id })
+      : startCheckout(option.id, "/api/stripe/create-checkout-session", { planId: option.id })
+
+  const countWord = ["no", "one", "two", "three", "four"][options.length] ?? String(options.length)
+
   return (
     <>
       {isStripeTestMode() && (
@@ -99,206 +195,234 @@ export default function PricingClient({ pack, availablePlanIds }: PricingClientP
         </div>
       )}
 
-      <div className="container mx-auto px-4 py-12 md:py-20 pb-24 md:pb-20">
-        <div className="text-center mb-12 md:mb-16">
-          <div className="inline-flex items-center gap-2 bg-teal-100 text-teal-800 px-4 py-2 rounded-full text-sm font-medium mb-6">
-            <Sparkles className="h-4 w-4" />
+      <div className="mx-auto max-w-6xl px-4 pt-6 pb-28 md:py-20">
+        {/* Header: short on phones so every option sits above the fold */}
+        <div className="mb-5 text-center md:mb-14">
+          <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-teal-100 px-3 py-1 text-xs font-medium text-teal-800 md:mb-6 md:px-4 md:py-2 md:text-sm">
+            <Sparkles className="h-3.5 w-3.5 md:h-4 md:w-4" />
             Your first tale is free
           </div>
-
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 bg-gradient-to-r from-teal-600 to-emerald-600 bg-clip-text text-transparent">
+          <h1 className="mb-2 bg-gradient-to-r from-teal-600 to-emerald-600 bg-clip-text text-3xl font-bold text-transparent md:mb-4 md:text-5xl lg:text-6xl">
             Simple pricing
           </h1>
-
-          <p className="text-base md:text-lg text-gray-700 max-w-2xl mx-auto font-medium">
-            Your first tale is on us.{" "}
-            {pack ? "Grab a few more with a one-time pack, or pick a plan." : "Pick a plan when you want more."}
+          <p className="mx-auto max-w-xl text-sm text-gray-600 md:text-lg md:text-gray-700">
+            Loved your free tale? Here are {countWord} ways to keep them coming.
           </p>
         </div>
 
+        {/* Phones: pick one from a compact list, then one clear button */}
+        <div className="md:hidden">
+          <div role="radiogroup" aria-label="Choose how to get more tales" className="space-y-2.5">
+            {options.map((option) => {
+              const isSelected = option.id === selected?.id
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={isSelected}
+                  onClick={() => setSelectedId(option.id)}
+                  className={cn(
+                    "relative flex w-full items-center gap-3 rounded-2xl border-2 bg-white px-4 py-3.5 text-left transition-colors",
+                    isSelected ? "border-teal-500 shadow-sm" : "border-gray-200 active:bg-gray-50",
+                  )}
+                >
+                  {option.id === featuredId && (
+                    <span className="absolute -top-2.5 right-4 rounded-full bg-gradient-to-r from-teal-600 to-emerald-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                      Most popular
+                    </span>
+                  )}
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2",
+                      isSelected ? "border-teal-600 bg-teal-600" : "border-gray-300",
+                    )}
+                  >
+                    {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <span className="font-semibold text-gray-900">{option.name}</span>
+                      {option.badge && (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+                          {option.badge}
+                        </span>
+                      )}
+                    </span>
+                    <span className="block text-sm text-gray-500">{option.summary}</span>
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <span className="block text-lg font-bold text-gray-900">{option.price}</span>
+                    <span className="block text-xs text-gray-500">{option.cadence}</span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+
+          {selected && (
+            <>
+              {/* The button sits right under the choices, so it is on screen without scrolling */}
+              <BuyButton option={selected} busyId={busyId} onBuy={buy} className="mt-4" />
+              <p className="mt-2 text-center text-xs text-gray-500">{selected.reassurance}</p>
+            </>
+          )}
+
+          {selected && (
+            <div className="mt-4 rounded-2xl bg-white p-4 shadow-sm">
+              <p className="text-sm font-medium text-gray-900">{selected.tagline}</p>
+              {selected.highlight && (
+                <p className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-900">{selected.highlight}</p>
+              )}
+              <ul className="mt-3 space-y-2">
+                {selected.features.map((f) => (
+                  <Feature key={f}>{f}</Feature>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        {/* Tablets and up: the options side by side */}
         <div
           className={cn(
-            "grid grid-cols-1 gap-6 md:gap-8 mx-auto mb-16",
-            pack ? "md:grid-cols-2 xl:grid-cols-4 max-w-7xl" : "md:grid-cols-3 max-w-6xl",
+            "mx-auto hidden gap-6 md:grid lg:gap-8",
+            options.length === 3 ? "md:grid-cols-3" : "max-w-4xl md:grid-cols-2",
           )}
         >
-          {/* Free */}
-          <Card className="relative flex flex-col">
-            <CardHeader className="text-center pb-6 pt-8">
-              <div className="mx-auto mb-4 h-16 w-16 rounded-full flex items-center justify-center bg-gray-100">
-                <PawPrint className="h-8 w-8 text-gray-500" />
-              </div>
-              <CardTitle className="text-2xl md:text-3xl font-bold mb-2">Free</CardTitle>
-              <CardDescription className="text-base">Try it out, no card needed</CardDescription>
-            </CardHeader>
-            <CardContent className="flex-1 text-center space-y-6">
-              <div>
-                <div className="text-5xl font-bold">$0</div>
-                <div className="text-sm text-muted-foreground mt-1">to try it</div>
-              </div>
-              <ul className="space-y-3 text-left">
-                <PlanFeature>
-                  {FREE_TIER.welcomeTales} tale when you sign up
-                </PlanFeature>
-                <PlanFeature>All narrator voices and vibes</PlanFeature>
-              </ul>
-            </CardContent>
-            <CardFooter className="pt-0">
-              <Button asChild variant="outline" className="w-full h-12 text-base font-semibold">
-                <a href="/auth/signup">Start free</a>
-              </Button>
-            </CardFooter>
-          </Card>
-
-          {/* One-time pack */}
-          {pack && (
-            <Card className="relative flex flex-col transition-all duration-200 hover:shadow-xl hover:-translate-y-1 hover:border-teal-300">
-              <CardHeader className="text-center pb-6 pt-8">
-                <div className="mx-auto mb-4 h-16 w-16 rounded-full flex items-center justify-center bg-amber-50">
-                  <Coins className="h-8 w-8 text-amber-500" />
-                </div>
-                <CardTitle className="text-2xl md:text-3xl font-bold mb-2">Try pack</CardTitle>
-                <CardDescription className="text-base">A few more tales, no subscription</CardDescription>
-              </CardHeader>
-              <CardContent className="flex-1 text-center space-y-6">
-                <div>
-                  <div className="text-5xl font-bold">
-                    {formatUsd(pack.priceCents)}
-                    <span className="text-lg font-medium text-muted-foreground"> once</span>
-                  </div>
-                  <div className="text-sm text-muted-foreground mt-1">
-                    {pack.tales} tales · {formatUsd(Math.round(pack.priceCents / pack.tales))} per tale
-                  </div>
-                </div>
-                <ul className="space-y-3 text-left">
-                  <PlanFeature>{pack.tales} tales, one time</PlanFeature>
-                  <PlanFeature>Pack tales never expire</PlanFeature>
-                  <PlanFeature>All narrator voices and vibes</PlanFeature>
-                  <PlanFeature>No subscription to cancel</PlanFeature>
-                </ul>
-              </CardContent>
-              <CardFooter className="pt-0">
-                <Button
-                  onClick={() => startCheckout(pack.id, "/api/stripe/create-pack-checkout", { pack_id: pack.id })}
-                  disabled={busyId !== null}
-                  variant="outline"
-                  className="w-full h-12 text-base font-semibold border-teal-600 text-teal-700 hover:bg-teal-50"
-                >
-                  {busyId === pack.id ? (
-                    <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    `Buy ${pack.tales} tales`
-                  )}
-                </Button>
-              </CardFooter>
-            </Card>
-          )}
-
-          {/* Paid plans */}
-          {subscriptionPlans.map((plan) => {
-            const available = availablePlanIds.includes(plan.id)
-            const isBusy = busyId === plan.id
-            const perTale = (plan.monthlyPrice / plan.talesPerMonth).toFixed(2)
-
+          {options.map((option) => {
+            const Icon = option.icon
+            const featured = option.id === featuredId
             return (
-              <Card
-                key={plan.id}
+              <div
+                key={option.id}
                 className={cn(
-                  "relative flex flex-col transition-all duration-200",
-                  plan.popular && "border-2 border-teal-400 shadow-lg",
-                  "hover:shadow-xl hover:-translate-y-1 hover:border-teal-300",
+                  "relative flex flex-col rounded-2xl border bg-white p-7 transition-shadow hover:shadow-xl",
+                  featured ? "border-2 border-teal-400 shadow-lg" : "border-gray-200",
                 )}
               >
-                {plan.popular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-teal-600 to-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded-full">
-                    Most popular
+                {featured && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-gradient-to-r from-teal-600 to-emerald-600 px-3 py-1 text-xs font-semibold text-white">
+                    Most popular{option.badge ? ` · ${option.badge}` : ""}
                   </div>
                 )}
-                <CardHeader className="text-center pb-6 pt-8">
+                <div className="text-center">
                   <div
                     className={cn(
-                      "mx-auto mb-4 h-16 w-16 rounded-full flex items-center justify-center",
-                      plan.popular ? "bg-gradient-to-br from-teal-100 to-emerald-100" : "bg-teal-50",
+                      "mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full",
+                      option.kind === "pack" ? "bg-amber-50" : "bg-teal-50",
                     )}
                   >
-                    <Sparkles className={cn("h-8 w-8", plan.popular ? "text-teal-600" : "text-teal-500")} />
+                    <Icon className={cn("h-7 w-7", option.kind === "pack" ? "text-amber-500" : "text-teal-600")} />
                   </div>
-                  <CardTitle className="text-2xl md:text-3xl font-bold mb-2">{plan.name}</CardTitle>
-                  <CardDescription className="text-base">{plan.description}</CardDescription>
-                </CardHeader>
-
-                <CardContent className="flex-1 text-center space-y-6">
-                  <div>
-                    <div className="text-5xl font-bold">
-                      ${plan.monthlyPrice.toFixed(2)}
-                      <span className="text-lg font-medium text-muted-foreground">/mo</span>
-                    </div>
-                    <div className="text-sm text-muted-foreground mt-1">
-                      {plan.talesPerMonth} tales a month · ${perTale} per tale
-                    </div>
+                  <h2 className="text-2xl font-bold">{option.name}</h2>
+                  <p className="mt-1 text-sm text-gray-500">{option.tagline}</p>
+                  <div className="mt-5 text-5xl font-bold">
+                    {option.price}
+                    <span className="text-lg font-medium text-gray-500"> {option.cadence}</span>
                   </div>
-                  <ul className="space-y-3 text-left">
-                    {plan.features.map((feature) => (
-                      <PlanFeature key={feature}>{feature}</PlanFeature>
-                    ))}
-                  </ul>
-                </CardContent>
-
-                <CardFooter className="pt-0">
-                  <Button
-                    onClick={() => startCheckout(plan.id, "/api/stripe/create-checkout-session", { planId: plan.id })}
-                    disabled={!available || busyId !== null}
-                    className={cn(
-                      "w-full h-12 text-base font-semibold transition-all hover:scale-105 active:scale-95",
-                      plan.popular
-                        ? "bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700"
-                        : "bg-teal-600 hover:bg-teal-700",
-                    )}
-                  >
-                    {isBusy ? (
-                      <>
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        Processing...
-                      </>
-                    ) : available ? (
-                      `Get ${plan.name}`
-                    ) : (
-                      "Coming soon"
-                    )}
-                  </Button>
-                </CardFooter>
-              </Card>
+                  <p className="mt-1 text-sm text-gray-500">{option.summary}</p>
+                </div>
+                {option.highlight && (
+                  <p className="mt-4 rounded-xl bg-emerald-50 px-3 py-2 text-center text-sm text-emerald-900">
+                    {option.highlight}
+                  </p>
+                )}
+                <ul className="mt-5 flex-1 space-y-2.5">
+                  {option.features.map((f) => (
+                    <Feature key={f}>{f}</Feature>
+                  ))}
+                </ul>
+                <BuyButton option={option} busyId={busyId} onBuy={buy} className="mt-6" outline={!featured} />
+                <p className="mt-2 text-center text-xs text-gray-500">{option.reassurance}</p>
+              </div>
             )
           })}
         </div>
 
-        <div className="max-w-3xl mx-auto text-center text-sm text-muted-foreground space-y-1">
-          <p>
-            Plans renew automatically every month at the price shown until you cancel. Cancel anytime in Settings;
-            you keep your tales until the end of the month you paid for.
-          </p>
-          <p>Unused plan tales roll over to the next month, up to two months&apos; worth. Payments are non-refundable except as described in our Terms.</p>
-          <p>
-            Prices in US dollars, plus any applicable tax. By subscribing you agree to our{" "}
-            <a href="/terms" className="underline underline-offset-4">
-              Terms of Service
-            </a>
-            .
-          </p>
-        </div>
+        {/* The fine print, in plain words */}
+        <section className="mx-auto mt-8 max-w-2xl rounded-2xl bg-white/70 p-5 md:mt-14 md:p-6">
+          <h2 className="text-base font-semibold text-gray-900">The fine print, in plain words</h2>
+          <ul className="mt-3 space-y-2.5 text-sm leading-relaxed text-gray-600">
+            <li>
+              <strong className="text-gray-800">Plans renew every month</strong> at the price shown until you cancel. You
+              can cancel anytime in Settings, and you keep your tales until the end of the month you paid for.
+            </li>
+            <li>
+              <strong className="text-gray-800">Unused plan tales roll over</strong> to next month, up to two months&apos;
+              worth. If your plan ends, any plan tales you haven&apos;t used end with it.
+            </li>
+            {pack && (
+              <li>
+                <strong className="text-gray-800">Pack tales never expire.</strong> We use your plan tales first, so pack
+                tales stay saved for later.
+              </li>
+            )}
+            <li>
+              <strong className="text-gray-800">All sales are final.</strong> Tales are ready to use the moment you pay,
+              so we can&apos;t offer refunds, except where our Terms say so (like a duplicate charge).
+            </li>
+            <li>
+              Prices are in US dollars, plus tax where it applies. By buying a pack or plan you agree to our{" "}
+              <a href="/terms" className="font-medium text-teal-700 underline underline-offset-4">
+                Terms of Service
+              </a>
+              .
+            </li>
+          </ul>
+        </section>
       </div>
     </>
   )
 }
 
-function PlanFeature({ children }: { children: React.ReactNode }) {
+function BuyButton({
+  option,
+  busyId,
+  onBuy,
+  className,
+  outline = false,
+}: {
+  option: PricingOption
+  busyId: string | null
+  onBuy: (option: PricingOption) => void
+  className?: string
+  outline?: boolean
+}) {
+  const isBusy = busyId === option.id
   return (
-    <li className="flex items-start">
-      <Check className="h-5 w-5 text-teal-600 mr-3 mt-0.5 flex-shrink-0" />
-      <span className="text-sm">{children}</span>
+    <button
+      type="button"
+      onClick={() => onBuy(option)}
+      disabled={!option.available || busyId !== null}
+      className={cn(
+        "flex h-12 w-full items-center justify-center rounded-xl text-base font-semibold transition-colors disabled:opacity-60",
+        outline
+          ? "border-2 border-teal-600 bg-white text-teal-700 hover:bg-teal-50"
+          : "bg-gradient-to-r from-teal-600 to-emerald-600 text-white hover:from-teal-700 hover:to-emerald-700",
+        className,
+      )}
+    >
+      {isBusy ? (
+        <>
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+          Opening checkout...
+        </>
+      ) : option.available ? (
+        option.cta
+      ) : (
+        "Coming soon"
+      )}
+    </button>
+  )
+}
+
+function Feature({ children }: { children: React.ReactNode }) {
+  return (
+    <li className="flex items-start text-sm text-gray-700">
+      <Check className="mr-2.5 mt-0.5 h-4 w-4 shrink-0 text-teal-600" />
+      <span>{children}</span>
     </li>
   )
 }

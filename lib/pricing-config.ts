@@ -49,7 +49,6 @@ export const subscriptionPlans: SubscriptionPlan[] = [
     features: [
       "25 tales every month",
       "All narrator voices and vibes",
-      "Tales for all your pets",
       "Share anywhere with one link",
       "Cancel anytime",
     ],
