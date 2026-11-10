@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/api/auth-middleware"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { logAdminAction } from "@/lib/api/audit-logger"
 import { getTaleHealth } from "@/lib/tale-health"
+import { getTaleCost, type TaleCost } from "@/lib/tale-cost"
 
 /**
  * GET /api/admin/videos
@@ -204,6 +205,7 @@ async function handler(request: NextRequest, context: any) {
         narrationGenre: video.narration_genre || "unknown",
         status: video.status || "unknown",
         health: getTaleHealth(video as any),
+        cost: getTaleCost((video as any).merge_details),
         userId: video.user_id,
         pet: {
           id: pet?.id || video.pet_id,
@@ -240,11 +242,13 @@ async function handler(request: NextRequest, context: any) {
 
     const total = count || 0
     const totalPages = Math.ceil(total / limit)
+    const costSummary = await getCostSummary()
 
     return NextResponse.json({
       success: true,
       data: {
         videos: transformedVideos,
+        costSummary,
         pagination: {
           page,
           limit,
@@ -265,6 +269,37 @@ async function handler(request: NextRequest, context: any) {
       },
       { status: 500 },
     )
+  }
+}
+
+/** Average Cloudinary cost per tale over the last 7 and 30 days (tales with a merge log only). */
+async function getCostSummary() {
+  try {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+    const { data, error } = await supabaseAdmin
+      .from("diary_entries")
+      .select("created_at, merge_details" as any)
+      .gte("created_at", since)
+      .not("merge_details", "is", null)
+      .limit(2000)
+    if (error) throw error
+    const sum = (rows: { created_at: string; cost: TaleCost }[]) => {
+      const credits = rows.reduce((t, r) => t + r.cost.credits, 0)
+      return {
+        tales: rows.length,
+        totalCredits: credits,
+        avgCredits: rows.length ? credits / rows.length : 0,
+        avgDollars: rows.length ? rows.reduce((t, r) => t + r.cost.dollars, 0) / rows.length : 0,
+      }
+    }
+    const rows = ((data as any[]) || [])
+      .map((r) => ({ created_at: r.created_at as string, cost: getTaleCost(r.merge_details) }))
+      .filter((r): r is { created_at: string; cost: TaleCost } => r.cost !== null)
+    return { last7: sum(rows.filter((r) => Date.parse(r.created_at) >= weekAgo)), last30: sum(rows) }
+  } catch (error) {
+    console.warn("[Admin Videos] Could not build cost summary:", error)
+    return null
   }
 }
 

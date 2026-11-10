@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { TaleHealthBadge } from "@/components/admin/tale-health-badge"
 import type { TaleHealth } from "@/lib/tale-health"
+import { formatCredits, formatDollars, type TaleCost } from "@/lib/tale-cost"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { RefreshCw, Video, Eye, Heart, User, Globe, Lock, Trash2, AlertCircle, RotateCcw, Loader2 } from "lucide-react"
@@ -40,6 +41,7 @@ interface VideoDetailData {
     compressionStatus: string | null
     health?: TaleHealth
     mergeDetails?: unknown
+    cost?: TaleCost | null
   }
   pet: {
     id: string
@@ -388,6 +390,24 @@ export default function AdminVideoDetailView({ videoId }: AdminVideoDetailViewPr
               <div className="text-sm text-gray-500">Status</div>
               <Badge variant="secondary">{data.video.status}</Badge>
             </div>
+            {data.video.cost && (
+              <div className="md:col-span-2">
+                <div className="text-sm text-gray-500">Cloudinary cost</div>
+                <div className="font-medium">
+                  {formatDollars(data.video.cost.dollars)} ({formatCredits(data.video.cost.credits)} credits)
+                  {!data.video.cost.complete && " or more"}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {Math.round(data.video.cost.videoSeconds)}s of 720p video:{" "}
+                  {data.video.cost.compressSeconds != null
+                    ? `${Math.round(data.video.cost.compressSeconds)}s compressing the upload, `
+                    : "compress length unknown, "}
+                  {Math.round(data.video.cost.renderSeconds)}s over {data.video.cost.renders} render
+                  {data.video.cost.renders === 1 ? "" : "s"}
+                  {data.video.cost.runs > 1 ? ` in ${data.video.cost.runs} runs (Redo or retry)` : ""}
+                </div>
+              </div>
+            )}
             {data.video.health && (
               <div className="md:col-span-2">
                 <div className="text-sm text-gray-500">Length check</div>

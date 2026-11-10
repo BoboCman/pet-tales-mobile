@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { TaleHealthBadge } from "@/components/admin/tale-health-badge"
 import type { TaleHealth } from "@/lib/tale-health"
+import { TaleCostBadge } from "@/components/admin/tale-cost-badge"
+import { DOLLARS_PER_CREDIT, formatCredits, formatDollars, type TaleCost } from "@/lib/tale-cost"
 import { useToast } from "@/hooks/use-toast"
 import {
   Search,
@@ -39,6 +41,7 @@ interface VideoItem {
   narrationGenre: string
   status: string
   health?: TaleHealth
+  cost?: TaleCost | null
   userId: string
   pet: {
     id: string
@@ -49,6 +52,17 @@ interface VideoItem {
   creator: {
     email: string
   }
+}
+
+interface CostPeriod {
+  tales: number
+  totalCredits: number
+  avgCredits: number
+  avgDollars: number
+}
+interface CostSummary {
+  last7: CostPeriod
+  last30: CostPeriod
 }
 
 interface Pagination {
@@ -63,6 +77,7 @@ interface Pagination {
 export default function AdminVideosPage() {
   const [videos, setVideos] = useState<VideoItem[]>([])
   const [pagination, setPagination] = useState<Pagination | null>(null)
+  const [costSummary, setCostSummary] = useState<CostSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [searchInput, setSearchInput] = useState("")
@@ -120,6 +135,7 @@ export default function AdminVideosPage() {
       if (result.success) {
         setVideos(result.data.videos)
         setPagination(result.data.pagination)
+        setCostSummary(result.data.costSummary ?? null)
       } else {
         throw new Error(result.error || "Failed to fetch videos")
       }
@@ -415,6 +431,47 @@ export default function AdminVideosPage() {
       </Card>
 
       {/* Videos */}
+      {costSummary && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Cloudinary cost per tale</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {(
+                [
+                  ["Last 7 days", costSummary.last7],
+                  ["Last 30 days", costSummary.last30],
+                ] as const
+              ).map(([label, p]) => (
+                <div key={label} className="rounded-lg bg-gray-50 p-3">
+                  <div className="text-sm text-gray-500">{label}</div>
+                  {p.tales ? (
+                    <>
+                      <div className="text-2xl font-bold">
+                        {formatDollars(p.avgDollars)}{" "}
+                        <span className="text-sm font-normal text-gray-500">
+                          per tale ({formatCredits(p.avgCredits)} credits)
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {p.tales} tales, {p.totalCredits.toFixed(1)} credits in all, Redos included
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-sm">No tales with a merge log yet</div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-gray-500">
+              Plus plan: 225 credits for $99 a month ({formatDollars(DOLLARS_PER_CREDIT)} a credit). Counts the 720p
+              video Cloudinary processes for each tale. Tales made before Nov 9 have no merge log and are left out.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Videos {pagination && `(${pagination.total} total)`}</CardTitle>
@@ -482,6 +539,7 @@ export default function AdminVideosPage() {
                               </Badge>
                             )}
                             <TaleHealthBadge health={video.health} />
+                            <TaleCostBadge cost={video.cost} />
                           </div>
 
                           <div className="flex items-center gap-3 text-xs text-gray-500">
@@ -550,6 +608,7 @@ export default function AdminVideosPage() {
                               </Badge>
                             )}
                             <TaleHealthBadge health={video.health} />
+                            <TaleCostBadge cost={video.cost} />
                           </div>
                         </div>
 
