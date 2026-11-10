@@ -1,8 +1,9 @@
 /**
  * Subscription plans (monthly only for launch).
  *
- * Each plan grants a set number of tales per billing month. Plan tales reset on every renewal
- * (no rollover); tales bought in packs never expire and are used after plan tales.
+ * Each plan grants a set number of tales per billing month. Unused plan tales roll over, capped at
+ * two months' worth (lib/credits/subscriptions.ts). Tales bought in packs never expire and are used
+ * after plan tales.
  *
  * Stripe price IDs come from env vars. A plan whose env var is missing is shown as
  * "coming soon" and cannot be checked out, so the app never crashes on a missing price.
@@ -43,10 +44,10 @@ export const subscriptionPlans: SubscriptionPlan[] = [
     name: "Super Fan",
     description: "For owners who post every few days",
     monthlyPrice: 9.99,
-    talesPerMonth: 20,
+    talesPerMonth: 25,
     popular: true,
     features: [
-      "20 tales every month",
+      "25 tales every month",
       "All narrator voices and vibes",
       "Tales for all your pets",
       "Share anywhere with one link",

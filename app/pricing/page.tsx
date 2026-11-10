@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
-import { getAllPacks } from "@/lib/stripe/pack-config"
+import { getAllPacks, getPackPriceId, packsEnabled } from "@/lib/stripe/pack-config"
 import { getConfiguredPlanIds } from "@/lib/pricing-config"
 import PricingClient from "./pricing-client"
 import { Spinner } from "@/components/ui/spinner"
@@ -23,9 +23,9 @@ export const metadata: Metadata = {
 }
 
 export default async function PricingPage() {
-  // One-time packs are off for launch (plans only). Set SHOW_CREDIT_PACKS=true once the packs
-  // exist in the PetTaleAI Stripe account and credit_packs.stripe_price_id points at them.
-  const packs = process.env.SHOW_CREDIT_PACKS === "true" ? await getAllPacks() : []
+  // One-time packs show once SHOW_CREDIT_PACKS=true and the pack has a Stripe price
+  // (STRIPE_PACK_TRY_PACK_PRICE_ID in Vercel, or credit_packs.stripe_price_id)
+  const packs = packsEnabled() ? (await getAllPacks()).filter((p) => getPackPriceId(p)) : []
   const availablePlanIds = getConfiguredPlanIds()
 
   return (

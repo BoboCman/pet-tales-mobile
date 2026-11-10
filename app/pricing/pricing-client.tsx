@@ -233,8 +233,8 @@ export default function PricingClient({ packs, availablePlanIds }: PricingClient
               <div className="flex-1 text-center md:text-left">
                 <h3 className="text-xl font-bold mb-1">Not ready for a plan?</h3>
                 <p className="text-muted-foreground text-sm">
-                  Get {topUpPack.credits} tales for ${(topUpPack.price_cents / 100).toFixed(2)}. Pack tales never
-                  expire and are used after your plan or free tales.
+                  Get {topUpPack.credits} tales for ${(topUpPack.price_cents / 100).toFixed(2)}, one time, no
+                  subscription. Pack tales never expire.
                 </p>
               </div>
               <Button
