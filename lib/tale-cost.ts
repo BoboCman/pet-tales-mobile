@@ -1,22 +1,19 @@
 /**
  * What a tale cost in Cloudinary credits, worked out from its merge log (diary_entries.merge_details).
  *
- * Cloudinary counts video by the second of output (https://cloudinary.com/documentation/transformation_counts):
- * up to 921,600 pixels (1280x720, so our 720x1280) is SD at 2 transformations a second, i.e. 500 seconds
- * per credit; HD is 4 a second. Eager and incoming transformations count the same as on-the-fly ones,
- * and each upload counts as 1. Every pass we run is 720x1280:
+ * Cloudinary bills video processing by the second of output: 1 credit = 250 seconds of HD video
+ * (720p counts as HD; SD is 500 seconds per credit). Every pass we run is 720x1280, so:
  * - compressing the upload to 720p: the whole clip (merge_details.upload_clip_seconds)
  * - each render of the tale: its length (merge_details.renders[].seconds)
  * - a Redo or retry renders again (merge_details.previous_runs keeps the last 4)
- * Storage is close to zero because the finished file is moved to Supabase. The one download of the
- * finished file is counted as bandwidth. Narration audio (0.1 a second) and the few uploads are
- * left out; together they are well under 0.01 credit.
+ * Plain uploads and copies (no transformation) are not processing. Storage is close to zero because
+ * the finished file is moved to Supabase. The one download of the finished file counts as bandwidth.
  *
- * This is the cost of making the tale, not the whole account: compare the 7-day total with the
- * Cloudinary dashboard to see anything else using credits.
+ * This matched the dashboard on 2026-11-10: 5,298 seconds of 720p in a week was ~21.2K of the
+ * 22.1K transformations shown.
  */
 
-export const SD_SECONDS_PER_CREDIT = 500
+export const HD_SECONDS_PER_CREDIT = 250
 /** Plus plan: $99 a month for 225 credits */
 export const DOLLARS_PER_CREDIT = 99 / 225
 const BYTES_PER_GB = 1024 ** 3
@@ -77,7 +74,7 @@ export function getTaleCost(mergeDetails: unknown): TaleCost | null {
 
   const videoSeconds = renderSeconds + (compressSeconds ?? 0)
   const finalBytes = num(details.renders?.[details.renders.length - 1]?.bytes) ?? 0
-  const credits = videoSeconds / SD_SECONDS_PER_CREDIT + finalBytes / BYTES_PER_GB
+  const credits = videoSeconds / HD_SECONDS_PER_CREDIT + finalBytes / BYTES_PER_GB
 
   return {
     credits,
