@@ -43,7 +43,7 @@ export interface CreditTransaction {
   user_id: string
   amount: number
   transaction_type: "welcome" | "weekly" | "purchase" | "deduction"
-  pack_type: "quick_fix" | "party_pack" | "creator_bundle" | null
+  pack_type: string | null
   stripe_payment_intent_id: string | null
   metadata: Record<string, any>
   created_at: string
@@ -257,7 +257,7 @@ export async function deductCredit(userId: string): Promise<DeductCreditResult> 
 export async function addPurchasedCredits(
   userId: string,
   amount: number,
-  packType: "quick_fix" | "party_pack" | "creator_bundle",
+  packType: string,
   stripePaymentIntentId: string,
 ): Promise<AddCreditsResult> {
   try {
@@ -303,14 +303,20 @@ export async function addPurchasedCredits(
     }
 
     // Log transaction with payment intent ID
-    const { error: transactionError } = await supabase.from("credit_transactions").insert({
+    // This row is also the idempotency record, so it must be written. If an old check constraint on
+    // pack_type rejects a newer pack id (e.g. try_pack), keep the id in metadata and retry without it.
+    const row = {
       user_id: userId,
       amount: amount,
       transaction_type: "purchase",
-      pack_type: packType,
       stripe_payment_intent_id: stripePaymentIntentId,
       metadata: { pack_type: packType, credits_added: amount },
-    })
+    }
+    let { error: transactionError } = await supabase.from("credit_transactions").insert({ ...row, pack_type: packType })
+    if (transactionError) {
+      console.warn("[admin] addPurchasedCredits: retrying transaction log without pack_type:", transactionError.message)
+      ;({ error: transactionError } = await supabase.from("credit_transactions").insert(row))
+    }
 
     if (transactionError) {
       console.error("[admin] addPurchasedCredits transaction log error:", transactionError)

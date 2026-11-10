@@ -2,6 +2,8 @@ import Link from "next/link"
 import { PawPrint, Plus, Video } from "lucide-react"
 import { getUserDetails, getPets, createClient } from "@/lib/supabase/server"
 import { PetCardNew, type PetCardPet } from "@/components/pets/pet-card-new"
+import { getPackOffer } from "@/lib/stripe/pack-offer"
+import { packLabel, startingPrice } from "@/lib/pricing-config"
 
 export const dynamic = "force-dynamic"
 
@@ -12,7 +14,7 @@ interface PetsPageProps {
 export default async function PetsPage({ searchParams }: PetsPageProps) {
   const newUser = searchParams?.newUser === "true" || searchParams?.from === "signup"
 
-  const [user, pets] = await Promise.all([getUserDetails(), getPets()])
+  const [user, pets, pack] = await Promise.all([getUserDetails(), getPets(), getPackOffer()])
 
   // Tales left (to flag when it's time for a plan) and finished tales per pet
   let talesLeft: number | null = null
@@ -79,7 +81,8 @@ export default async function PetsPage({ searchParams }: PetsPageProps) {
           className="mx-4 mt-4 flex items-center justify-between gap-3 rounded-2xl bg-amber-50 px-4 py-3 active:bg-amber-100 dark:bg-amber-900/20"
         >
           <span className="text-sm text-amber-900 dark:text-amber-200">You&apos;re out of tales</span>
-          <span className="text-sm font-semibold text-teal-700 dark:text-teal-400">See plans from $4.99 →</span>
+          <span className="text-sm font-semibold text-teal-700 dark:text-teal-400">{pack ? `Get ${packLabel(pack)} →` : `See plans from ${startingPrice(null)} →`}
+          </span>
         </Link>
       )}
 

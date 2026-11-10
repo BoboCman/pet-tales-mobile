@@ -3,7 +3,8 @@ import { stripe } from "@/lib/stripe"
 import { getOrCreateStripeCustomer } from "@/lib/stripe/customer"
 import { createClient } from "@/lib/supabase/server"
 import { formatStripeError } from "@/lib/stripe-errors"
-import { getPackById, getPackPriceId, packsEnabled } from "@/lib/stripe/pack-config"
+import { getPackById, packsEnabled } from "@/lib/stripe/pack-config"
+import { resolvePackPrice } from "@/lib/stripe/pack-offer"
 import { isStripeTestMode, TEST_CARD_INFO } from "@/lib/stripe/test-mode"
 import { getAppBaseUrl } from "@/lib/utils/app-url"
 
@@ -72,8 +73,8 @@ export async function POST(request: Request) {
       )
     }
 
-    const priceId = getPackPriceId(pack)
-    if (!packsEnabled() || !priceId) {
+    const priceId = packsEnabled() && pack.active ? (await resolvePackPrice(pack))?.priceId : null
+    if (!priceId) {
       return NextResponse.json(
         { error: "Pack not available", message: "Tale packs aren't available right now" },
         { status: 404 },
@@ -113,7 +114,7 @@ export async function POST(request: Request) {
           quantity: 1,
         },
       ],
-      success_url: `${origin}/dashboard?session_id={CHECKOUT_SESSION_ID}&pack_purchase=success`,
+      success_url: `${origin}/pricing?session_id={CHECKOUT_SESSION_ID}&pack_purchase=success`,
       cancel_url: `${origin}/pricing?canceled=true`,
       metadata: {
         userId: userData.id,

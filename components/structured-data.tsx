@@ -1,3 +1,6 @@
+import { TRY_PACK, packsEnabled } from "@/lib/stripe/pack-config"
+import { plansFromLabel } from "@/lib/pricing-config"
+
 export function StructuredData() {
   const siteUrl = "https://www.pettaleai.com"
 
@@ -36,7 +39,9 @@ export function StructuredData() {
       "@type": "Offer",
       price: "0",
       priceCurrency: "USD",
-      description: "First tale free. Plans from $4.99 a month.",
+      description: packsEnabled()
+        ? `First tale free. ${TRY_PACK.tales} tales for $${TRY_PACK.price}, or plans from ${plansFromLabel}.`
+        : `First tale free. Plans from ${plansFromLabel}.`,
     },
     featureList: [
       "AI voice narration",

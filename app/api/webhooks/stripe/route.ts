@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
     const result = await addPurchasedCredits(
       userId,
       creditsToGrant,
-      pack_id as "quick_fix" | "party_pack" | "creator_bundle",
+      pack_id,
       paymentIntentId,
     )
 

@@ -7,7 +7,8 @@ import { CommunityStrip } from "@/components/landing/community-strip"
 import { NARRATION_GENRES } from "@/lib/narration-genres"
 import { UNIVERSAL_VOICES } from "@/lib/voice-personalities"
 import { VoicesVibesSheet } from "@/components/landing/voices-vibes-sheet"
-import { TRY_PACK, packsEnabled } from "@/lib/stripe/pack-config"
+import { getPackOffer } from "@/lib/stripe/pack-offer"
+import { cheapestPlan, packLabel, plansFromLabel, priceSummary } from "@/lib/pricing-config"
 
 // Only what the sheet shows (keeps provider voice ids out of the page)
 const SHEET_VOICES = UNIVERSAL_VOICES.map(({ value, emoji, label, description }) => ({
@@ -38,29 +39,27 @@ const FAQ = [
     q: "Who can see my tales?",
     a: "You decide for each tale: keep it to yourself, send the link to family, or post it to Community.",
   },
-  {
-    q: "What does it cost after that?",
-    a: "Plans start at $4.99 a month for 10 tales. Cancel anytime in Settings.",
-  },
 ]
 
 export default async function Home() {
   const session = await getSession()
   const ctaHref = session ? "/dashboard/reels/new" : "/auth/signup?ref=landing"
   const ctaLabel = session ? "Make a tale" : "Make your first tale free"
-  // The 3-tale pack is mentioned only once it is on sale (SHOW_CREDIT_PACKS=true)
-  const showPack = packsEnabled()
-  const priceLine = showPack
-    ? `Then ${TRY_PACK.tales} tales for $${TRY_PACK.price}, or plans from $4.99 a month`
-    : "Plans from $4.99 a month · Nothing to download"
-  const faq = FAQ.map((item) =>
-    showPack && item.q === "What does it cost after that?"
-      ? {
-          ...item,
-          a: `Get ${TRY_PACK.tales} tales for $${TRY_PACK.price} with no subscription, or a plan from $4.99 a month for 10 tales. Cancel anytime in Settings.`,
-        }
-      : item,
-  )
+  // Prices come from one place (lib/pricing-config + lib/stripe/pack-offer), so the pack shows here
+  // exactly when it can be bought
+  const pack = await getPackOffer()
+  const priceLine = pack
+    ? `Then ${priceSummary(pack).charAt(0).toLowerCase()}${priceSummary(pack).slice(1)}`
+    : `${priceSummary(null)} · Nothing to download`
+  const faq = [
+    ...FAQ,
+    {
+      q: "What does it cost after that?",
+      a: pack
+        ? `Get ${packLabel(pack)}, one time with no subscription, or a plan from ${plansFromLabel} for ${cheapestPlan.talesPerMonth} tales. Pack tales never expire, and you can cancel a plan anytime in Settings.`
+        : `Plans start at ${plansFromLabel} for ${cheapestPlan.talesPerMonth} tales. Cancel anytime in Settings.`,
+    },
+  ]
 
   return (
     <div className="flex min-h-screen flex-col bg-white dark:bg-gray-950">

@@ -24,7 +24,8 @@ export const TRY_PACK = { id: "try_pack", tales: 3, price: 2.99 } as const
  * Vercel with the plan prices instead of in the table.
  */
 export function getPackPriceId(pack: Pick<CreditPack, "id" | "stripe_price_id">): string | null {
-  const fromEnv = process.env[`STRIPE_PACK_${pack.id.toUpperCase()}_PRICE_ID`]?.trim()
+  const id = pack.id.toUpperCase()
+  const fromEnv = (process.env[`STRIPE_PACK_${id}_PRICE_ID`] || process.env[`STRIPE_${id}_PRICE_ID`])?.trim()
   if (fromEnv) return fromEnv
   return pack.stripe_price_id?.startsWith("price_") ? pack.stripe_price_id : null
 }

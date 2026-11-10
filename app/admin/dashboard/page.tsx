@@ -1,6 +1,7 @@
 import { CreditManagementCard } from "./components/credit-management-card"
 import DashboardMetrics from "./components/dashboard-metrics"
 import { StorageCleanupCard } from "./components/storage-cleanup-card"
+import { OnSaleCard } from "./components/on-sale-card"
 import { Button } from "@/components/ui/button"
 import { getSession } from "@/lib/supabase/server"
 import { createClient } from "@/lib/supabase/server"
@@ -48,6 +49,8 @@ export default async function AdminDashboardPage() {
       </div>
 
       <DashboardMetrics />
+
+      <OnSaleCard />
 
       <CreditManagementCard adminEmail={userData.email} />
 

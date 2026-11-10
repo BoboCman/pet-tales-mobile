@@ -9,18 +9,21 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { AlertCircle, Zap, X } from "lucide-react"
+import { AlertCircle, Coins, Loader2, Zap, X } from "lucide-react"
 import Link from "next/link"
-import { subscriptionPlans } from "@/lib/pricing-config"
+import { cheapestPlan, packLabel, plansFromLabel, type PackOffer } from "@/lib/pricing-config"
+import { useBuyPack } from "@/components/billing/use-buy-pack"
 
 interface OutOfCreditsModalProps {
   isOpen: boolean
   onClose: () => void
   balance: number
+  /** The one-time pack on sale, if any: offered as a one-tap buy */
+  pack?: PackOffer | null
 }
 
-export function OutOfCreditsModal({ isOpen, onClose, balance }: OutOfCreditsModalProps) {
-  const cheapest = [...subscriptionPlans].sort((a, b) => a.monthlyPrice - b.monthlyPrice)[0]
+export function OutOfCreditsModal({ isOpen, onClose, balance, pack }: OutOfCreditsModalProps) {
+  const { buy, buying } = useBuyPack()
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -31,10 +34,10 @@ export function OutOfCreditsModal({ isOpen, onClose, balance }: OutOfCreditsModa
           </div>
           <DialogTitle className="text-center text-xl">You&apos;re out of tales</DialogTitle>
           <DialogDescription className="text-center">
-            Each Pet Tale uses 1 tale.
-            {cheapest
-              ? ` Plans start at $${cheapest.monthlyPrice.toFixed(2)} a month for ${cheapest.talesPerMonth} tales.`
-              : ""}
+            Each Pet Tale uses 1 tale.{" "}
+            {pack
+              ? `Get ${packLabel(pack)} with no subscription, or a plan from ${plansFromLabel} for ${cheapestPlan.talesPerMonth} tales.`
+              : `Plans start at ${plansFromLabel} for ${cheapestPlan.talesPerMonth} tales.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -46,13 +49,27 @@ export function OutOfCreditsModal({ isOpen, onClose, balance }: OutOfCreditsModa
         </div>
 
         <DialogFooter className="flex-col sm:flex-col gap-2">
-          <Button asChild className="w-full bg-teal-600 hover:bg-teal-700 text-white">
+          {pack && (
+            <Button
+              onClick={() => buy(pack)}
+              disabled={buying}
+              className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+            >
+              {buying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Coins className="mr-2 h-4 w-4" />}
+              Get {packLabel(pack)}
+            </Button>
+          )}
+          <Button
+            asChild
+            variant={pack ? "outline" : "default"}
+            className={pack ? "w-full" : "w-full bg-teal-600 hover:bg-teal-700 text-white"}
+          >
             <Link href="/pricing">
               <Zap className="mr-2 h-4 w-4" />
               See plans
             </Link>
           </Button>
-          <Button variant="outline" onClick={onClose} className="w-full bg-transparent">
+          <Button variant="ghost" onClick={onClose} className="w-full">
             <X className="mr-2 h-4 w-4" />
             Maybe later
           </Button>

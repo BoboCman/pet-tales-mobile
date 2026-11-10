@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { createClient, getUserDetails } from "@/lib/supabase/server"
 import { SettingsView, type BillingData } from "@/components/settings/settings-view"
+import { getPackOffer } from "@/lib/stripe/pack-offer"
 
 export const metadata: Metadata = {
   title: "Settings",
@@ -24,5 +25,7 @@ export default async function SettingsPage() {
     billing = (data as BillingData) ?? null
   }
 
-  return <SettingsView user={user} billing={billing} />
+  const pack = await getPackOffer()
+
+  return <SettingsView user={user} billing={billing} pack={pack} />
 }
