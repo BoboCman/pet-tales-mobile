@@ -4,6 +4,7 @@ import { VideoUploadInterface } from "@/components/reels/video-upload-interface"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { CreditsBadge } from "@/components/ui/credits-badge"
+import { getPackOffer } from "@/lib/stripe/pack-offer"
 
 export const dynamic = "force-dynamic"
 
@@ -19,13 +20,13 @@ export default async function NewReelPage({ searchParams }: NewReelPageProps) {
   }
 
   // Get user's pets
-  const pets = await getPets()
+  const [pets, pack] = await Promise.all([getPets(), getPackOffer()])
 
   // No pets yet is fine: the upload screen asks for just a name, dog/cat and
   // boy/girl right before creating the tale.
   const preSelectedPetId = searchParams?.pet as string | undefined
   const selectedPetId =
-    preSelectedPetId && pets.find((p) => p.id === preSelectedPetId) ? preSelectedPetId : pets[0]?.id || ""
+    preSelectedPetId && pets.find((p: { id: string }) => p.id === preSelectedPetId) ? preSelectedPetId : pets[0]?.id || ""
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -48,7 +49,7 @@ export default async function NewReelPage({ searchParams }: NewReelPageProps) {
 
       {/* Main Content */}
       <div className="container max-w-md mx-auto px-4 pt-4 pb-5">
-        <VideoUploadInterface pets={pets} selectedPetId={selectedPetId} />
+        <VideoUploadInterface pets={pets} selectedPetId={selectedPetId} pack={pack} />
       </div>
     </div>
   )

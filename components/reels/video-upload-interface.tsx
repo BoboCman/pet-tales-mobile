@@ -14,6 +14,7 @@ import { clientLogger } from "@/lib/client-logger"
 import { CREDIT_MESSAGES } from "@/lib/types/credit-types"
 import { OutOfCreditsBanner } from "@/components/ui/out-of-credits-banner"
 import { OutOfCreditsModal } from "@/components/modals/out-of-credits-modal"
+import type { PackOffer } from "@/lib/pricing-config"
 import Link from "next/link"
 import { getVoicesByPetType } from "@/lib/voice-personalities"
 import { NARRATION_GENRES } from "@/lib/narration-genres"
@@ -41,6 +42,8 @@ interface Pet {
 interface VideoUploadInterfaceProps {
   pets: Pet[]
   selectedPetId: string
+  /** The one-time pack on sale, offered when the person runs out of tales */
+  pack?: PackOffer | null
 }
 
 /** "0:27" style length for the clip card */
@@ -104,7 +107,7 @@ const getTopPersonalityTraits = (pet: Pet): string => {
   return topTraits.filter(Boolean).join(" • ") || "Unique Personality"
 }
 
-export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfaceProps) {
+export function VideoUploadInterface({ pets, selectedPetId, pack = null }: VideoUploadInterfaceProps) {
   const router = useRouter()
   const { supabase } = useSupabase()
   const { uploadPetVideo } = useDirectUpload()
@@ -293,7 +296,7 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
           setShowOutOfCreditsModal(true)
           toast({
             title: CREDIT_MESSAGES.OUT_OF_CREDITS,
-            description: "Pick a plan to keep creating.",
+            description: pack ? "Grab a pack or pick a plan to keep creating." : "Pick a plan to keep creating.",
             variant: "destructive",
           })
           setCreditBalance(balanceCheck.balance)
@@ -678,6 +681,7 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
           isOpen={showOutOfCreditsModal}
           onClose={() => setShowOutOfCreditsModal(false)}
           balance={creditBalance || 0}
+          pack={pack}
         />
 
         {/* Clip card */}
@@ -808,7 +812,7 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
           <VoicePicker voices={availableVoices} selectedVoice={narrationStyle} onSelectVoice={setNarrationStyle} />
         </section>
 
-        {isOutOfCredits && <OutOfCreditsBanner balance={creditBalance || 0} />}
+        {isOutOfCredits && <OutOfCreditsBanner balance={creditBalance || 0} pack={pack} />}
 
         {/* Create bar: pinned to the bottom on phones (the bottom nav is hidden on this page, see
             isPrivateTaleViewer in bottom-nav.tsx), inline on larger screens */}
@@ -875,10 +879,11 @@ export function VideoUploadInterface({ pets, selectedPetId }: VideoUploadInterfa
         isOpen={showOutOfCreditsModal}
         onClose={() => setShowOutOfCreditsModal(false)}
         balance={creditBalance || 0}
+        pack={pack}
       />
 
       {isOutOfCredits && (
-        <OutOfCreditsBanner balance={creditBalance || 0} />
+        <OutOfCreditsBanner balance={creditBalance || 0} pack={pack} />
       )}
 
       <button

@@ -8,23 +8,21 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle, Check, Coins, Loader2, PawPrint, Sparkles } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import type { CreditPack } from "@/lib/stripe/pack-config"
 import { isStripeTestMode } from "@/lib/stripe/test-mode"
-import { FREE_TIER, subscriptionPlans, type PlanId } from "@/lib/pricing-config"
+import { FREE_TIER, formatUsd, subscriptionPlans, type PackOffer, type PlanId } from "@/lib/pricing-config"
 
 interface PricingClientProps {
-  packs: CreditPack[]
+  /** The one-time pack on sale, or null (lib/stripe/pack-offer.ts) */
+  pack: PackOffer | null
   /** Plans with a Stripe price configured; others show as "Coming soon" */
   availablePlanIds: PlanId[]
 }
 
-export default function PricingClient({ packs, availablePlanIds }: PricingClientProps) {
+export default function PricingClient({ pack, availablePlanIds }: PricingClientProps) {
   const [busyId, setBusyId] = useState<string | null>(null)
   const { toast } = useToast()
   const searchParams = useSearchParams()
 
-  // Top-up packs: show the smallest active pack for people who don't want a plan
-  const topUpPack = packs.length > 0 ? [...packs].sort((a, b) => a.credits - b.credits)[0] : null
 
   useEffect(() => {
     const sessionId = searchParams.get("session_id")
@@ -33,7 +31,7 @@ export default function PricingClient({ packs, availablePlanIds }: PricingClient
     if (searchParams.get("pack_purchase") === "success") {
       toast({
         title: "🎉 Tales added!",
-        description: "Your tales have been added to your account. Start creating!",
+        description: "Your pack tales will be in your account within a minute. They never expire.",
         duration: 6000,
       })
       window.history.replaceState({}, "", "/pricing")
@@ -109,15 +107,21 @@ export default function PricingClient({ packs, availablePlanIds }: PricingClient
           </div>
 
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 bg-gradient-to-r from-teal-600 to-emerald-600 bg-clip-text text-transparent">
-            Simple, monthly pricing
+            Simple pricing
           </h1>
 
           <p className="text-base md:text-lg text-gray-700 max-w-2xl mx-auto font-medium">
-            Your first tale is on us. Pick a plan when you want more.
+            Your first tale is on us.{" "}
+            {pack ? "Grab a few more with a one-time pack, or pick a plan." : "Pick a plan when you want more."}
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 max-w-6xl mx-auto mb-16">
+        <div
+          className={cn(
+            "grid grid-cols-1 gap-6 md:gap-8 mx-auto mb-16",
+            pack ? "md:grid-cols-2 xl:grid-cols-4 max-w-7xl" : "md:grid-cols-3 max-w-6xl",
+          )}
+        >
           {/* Free */}
           <Card className="relative flex flex-col">
             <CardHeader className="text-center pb-6 pt-8">
@@ -145,6 +149,53 @@ export default function PricingClient({ packs, availablePlanIds }: PricingClient
               </Button>
             </CardFooter>
           </Card>
+
+          {/* One-time pack */}
+          {pack && (
+            <Card className="relative flex flex-col transition-all duration-200 hover:shadow-xl hover:-translate-y-1 hover:border-teal-300">
+              <CardHeader className="text-center pb-6 pt-8">
+                <div className="mx-auto mb-4 h-16 w-16 rounded-full flex items-center justify-center bg-amber-50">
+                  <Coins className="h-8 w-8 text-amber-500" />
+                </div>
+                <CardTitle className="text-2xl md:text-3xl font-bold mb-2">Try pack</CardTitle>
+                <CardDescription className="text-base">A few more tales, no subscription</CardDescription>
+              </CardHeader>
+              <CardContent className="flex-1 text-center space-y-6">
+                <div>
+                  <div className="text-5xl font-bold">
+                    {formatUsd(pack.priceCents)}
+                    <span className="text-lg font-medium text-muted-foreground"> once</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {pack.tales} tales · {formatUsd(Math.round(pack.priceCents / pack.tales))} per tale
+                  </div>
+                </div>
+                <ul className="space-y-3 text-left">
+                  <PlanFeature>{pack.tales} tales, one time</PlanFeature>
+                  <PlanFeature>Pack tales never expire</PlanFeature>
+                  <PlanFeature>All narrator voices and vibes</PlanFeature>
+                  <PlanFeature>No subscription to cancel</PlanFeature>
+                </ul>
+              </CardContent>
+              <CardFooter className="pt-0">
+                <Button
+                  onClick={() => startCheckout(pack.id, "/api/stripe/create-pack-checkout", { pack_id: pack.id })}
+                  disabled={busyId !== null}
+                  variant="outline"
+                  className="w-full h-12 text-base font-semibold border-teal-600 text-teal-700 hover:bg-teal-50"
+                >
+                  {busyId === pack.id ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    `Buy ${pack.tales} tales`
+                  )}
+                </Button>
+              </CardFooter>
+            </Card>
+          )}
 
           {/* Paid plans */}
           {subscriptionPlans.map((plan) => {
@@ -223,31 +274,6 @@ export default function PricingClient({ packs, availablePlanIds }: PricingClient
             )
           })}
         </div>
-
-        {topUpPack && (
-          <div className="max-w-3xl mx-auto mb-12">
-            <div className="bg-white rounded-lg border p-6 md:p-8 shadow-sm flex flex-col md:flex-row items-center gap-6">
-              <div className="h-14 w-14 rounded-full bg-teal-50 flex items-center justify-center flex-shrink-0">
-                <Coins className="h-7 w-7 text-teal-500" />
-              </div>
-              <div className="flex-1 text-center md:text-left">
-                <h3 className="text-xl font-bold mb-1">Not ready for a plan?</h3>
-                <p className="text-muted-foreground text-sm">
-                  Get {topUpPack.credits} tales for ${(topUpPack.price_cents / 100).toFixed(2)}, one time, no
-                  subscription. Pack tales never expire.
-                </p>
-              </div>
-              <Button
-                onClick={() => startCheckout(topUpPack.id, "/api/stripe/create-pack-checkout", { pack_id: topUpPack.id })}
-                disabled={busyId !== null}
-                variant="outline"
-                className="h-12 px-6 font-semibold"
-              >
-                {busyId === topUpPack.id ? <Loader2 className="h-5 w-5 animate-spin" /> : "Buy tales"}
-              </Button>
-            </div>
-          </div>
-        )}
 
         <div className="max-w-3xl mx-auto text-center text-sm text-muted-foreground space-y-1">
           <p>

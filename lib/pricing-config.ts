@@ -82,3 +82,36 @@ export function getPlanByPriceId(priceId: string | null | undefined): Subscripti
 export function getConfiguredPlanIds(): PlanId[] {
   return subscriptionPlans.filter((plan) => getPlanPriceId(plan.id)).map((plan) => plan.id)
 }
+
+/**
+ * A one-time tale pack that is on sale right now (worked out on the server by getPackOffer in
+ * lib/stripe/pack-offer.ts). Plain data, so it can be passed to client components.
+ */
+export interface PackOffer {
+  id: string
+  tales: number
+  priceCents: number
+}
+
+export const formatUsd = (cents: number) => `$${(cents / 100).toFixed(2)}`
+
+/** "3 tales for $2.99" */
+export const packLabel = (offer: PackOffer) => `${offer.tales} tales for ${formatUsd(offer.priceCents)}`
+
+/** The cheapest plan, used for "plans from $4.99 a month" */
+export const cheapestPlan = [...subscriptionPlans].sort((a, b) => a.monthlyPrice - b.monthlyPrice)[0]
+
+/** "$4.99 a month" */
+export const plansFromLabel = `$${cheapestPlan.monthlyPrice.toFixed(2)} a month`
+
+/** One line for every "what does it cost" spot, so they all stay in step with what is on sale */
+export function priceSummary(offer: PackOffer | null): string {
+  return offer
+    ? `${packLabel(offer)}, or plans from ${plansFromLabel}`
+    : `Plans from ${plansFromLabel}`
+}
+
+/** Lowest price someone can pay today: "$2.99" with a pack on sale, otherwise "$4.99" */
+export function startingPrice(offer: PackOffer | null): string {
+  return offer ? formatUsd(offer.priceCents) : `$${cheapestPlan.monthlyPrice.toFixed(2)}`
+}

@@ -9,7 +9,7 @@ import { ProfileForm } from "@/components/settings/profile-form"
 import { ChangePasswordForm } from "@/components/settings/change-password-form"
 import { DeleteAccountDialog } from "@/components/account/delete-account-dialog"
 import { createClient } from "@/lib/supabase/client"
-import { getPlanById, subscriptionPlans } from "@/lib/pricing-config"
+import { getPlanById, priceSummary, type PackOffer } from "@/lib/pricing-config"
 import { SEO_CONFIG } from "@/lib/constants/seo"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -126,7 +126,7 @@ function Sheet({
   )
 }
 
-function PlanCard({ billing }: { billing: BillingData | null }) {
+function PlanCard({ billing, pack }: { billing: BillingData | null; pack: PackOffer | null }) {
   const { toast } = useToast()
   const [opening, setOpening] = useState(false)
 
@@ -138,7 +138,6 @@ function PlanCard({ billing }: { billing: BillingData | null }) {
   const total = (billing?.free_credits || 0) + packTales
   const periodEnd = formatDate(billing?.subscription_period_end ?? null)
   const cancelling = !!billing?.subscription_cancel_at_period_end
-  const cheapest = [...subscriptionPlans].sort((a, b) => a.monthlyPrice - b.monthlyPrice)[0]
 
   const openPortal = async () => {
     setOpening(true)
@@ -160,7 +159,7 @@ function PlanCard({ billing }: { billing: BillingData | null }) {
   let detail: string
   if (plan && cancelling) detail = `${plan.name} · ends ${periodEnd ?? "this period"}`
   else if (plan) detail = `${plan.name}${periodEnd && status !== "past_due" ? ` · renews ${periodEnd}` : ""}`
-  else detail = cheapest ? `Plans from $${cheapest.monthlyPrice.toFixed(2)} a month` : "No plan"
+  else detail = priceSummary(pack)
 
   return (
     <section id="billing" className="mt-4 rounded-2xl bg-white p-4 shadow-sm dark:bg-gray-900">
@@ -188,7 +187,7 @@ function PlanCard({ billing }: { billing: BillingData | null }) {
             href="/pricing"
             className="inline-flex h-10 shrink-0 items-center rounded-full bg-teal-600 px-4 text-sm font-semibold text-white active:bg-teal-700"
           >
-            See plans
+            {pack ? "Get tales" : "See plans"}
           </Link>
         )}
       </div>
@@ -215,7 +214,15 @@ function PlanCard({ billing }: { billing: BillingData | null }) {
   )
 }
 
-export function SettingsView({ user, billing }: { user: any; billing: BillingData | null }) {
+export function SettingsView({
+  user,
+  billing,
+  pack = null,
+}: {
+  user: any
+  billing: BillingData | null
+  pack?: PackOffer | null
+}) {
   const router = useRouter()
   const { toast } = useToast()
   const [sheet, setSheet] = useState<"profile" | "password" | null>(null)
@@ -273,7 +280,7 @@ export function SettingsView({ user, billing }: { user: any; billing: BillingDat
         <span className="text-sm font-medium text-teal-700 dark:text-teal-400">Edit</span>
       </button>
 
-      <PlanCard billing={billing} />
+      <PlanCard billing={billing} pack={pack} />
 
       <Section title="Account">
         <Row icon={KeyRound} label="Change password" onClick={() => setSheet("password")} />
