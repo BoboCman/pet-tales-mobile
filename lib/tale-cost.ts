@@ -30,6 +30,8 @@ export interface TaleCost {
   runs: number
   /** False when part of the log is missing (older tales), so the number is a floor */
   complete: boolean
+  /** Video sizes as WIDTHxHEIGHT, when logged: the upload, its 720p copy, and the final tale */
+  sizes: { upload: string | null; compressed: string | null; final: string | null }
 }
 
 function parse(value: unknown): Record<string, any> | null {
@@ -73,7 +75,8 @@ export function getTaleCost(mergeDetails: unknown): TaleCost | null {
   if (!compressSeconds) complete = false
 
   const videoSeconds = renderSeconds + (compressSeconds ?? 0)
-  const finalBytes = num(details.renders?.[details.renders.length - 1]?.bytes) ?? 0
+  const lastRender = Array.isArray(details.renders) ? details.renders[details.renders.length - 1] : undefined
+  const finalBytes = num(lastRender?.bytes) ?? 0
   const credits = videoSeconds / HD_SECONDS_PER_CREDIT + finalBytes / BYTES_PER_GB
 
   return {
@@ -85,6 +88,11 @@ export function getTaleCost(mergeDetails: unknown): TaleCost | null {
     renders,
     runs: runs.length,
     complete,
+    sizes: {
+      upload: typeof details.upload_size === "string" ? details.upload_size : null,
+      compressed: typeof details.compressed_size === "string" ? details.compressed_size : null,
+      final: lastRender?.width && lastRender?.height ? `${lastRender.width}x${lastRender.height}` : null,
+    },
   }
 }
 

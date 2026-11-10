@@ -17,8 +17,19 @@ type CompressionNotification = {
   notification_type?: string
   public_id?: string
   duration?: number
+  width?: number
+  height?: number
   error?: unknown
-  eager?: Array<{ secure_url?: string; url?: string; format?: string; bytes?: number; status?: string; reason?: string }>
+  eager?: Array<{
+    secure_url?: string
+    url?: string
+    format?: string
+    bytes?: number
+    status?: string
+    reason?: string
+    width?: number
+    height?: number
+  }>
 }
 
 // Cloudinary signs notifications with sha1 or sha256 depending on the account's signature algorithm
@@ -94,6 +105,27 @@ export async function POST(request: NextRequest) {
 
   // The upload notification carries the clip's length, which the Admin API sometimes leaves out
   // later. Keep it for the merge (merged-video reads merge_details.upload_clip_seconds).
+  // Also keep the size of the upload and of the 720p copy: Cloudinary bills by output size
+  // (SD up to 921,600 pixels, HD above), so the admin cost check can see which rate applied.
+  const eagerDone = payload.notification_type === "eager" ? payload.eager?.[0] : undefined
+  const sizeFields: Record<string, string> = {}
+  if (payload.width && payload.height) sizeFields.upload_size = `${payload.width}x${payload.height}`
+  if (eagerDone?.width && eagerDone?.height) sizeFields.compressed_size = `${eagerDone.width}x${eagerDone.height}`
+  if (Object.keys(sizeFields).length) {
+    const { data: row } = await supabase
+      .from("diary_entries")
+      .select("id, merge_details" as any)
+      .eq("cloudinary_public_id", publicId)
+      .maybeSingle()
+    if (row) {
+      const current = ((row as any).merge_details as Record<string, any> | null) ?? {}
+      const { error: sizeError } = await supabase
+        .from("diary_entries")
+        .update({ merge_details: { ...current, ...sizeFields } } as any)
+        .eq("id", (row as any).id)
+      if (sizeError) console.warn("Compress webhook: could not save video size:", sizeError.message)
+    }
+  }
   if (typeof payload.duration === "number" && payload.duration > 0) {
     const { data: row } = await supabase
       .from("diary_entries")
