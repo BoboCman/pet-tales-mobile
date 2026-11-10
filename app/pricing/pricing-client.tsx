@@ -348,7 +348,7 @@ export default function PricingClient({ pack, availablePlanIds }: PricingClientP
             Unused plan tales roll over, up to two months&apos; worth.{pack ? " Pack tales never expire." : ""}
           </p>
           <p>
-            Prices in USD, plus tax. Payments are non-refundable.{" "}
+            Prices in USD. Payments are non-refundable.{" "}
             <a href="/terms" className="underline underline-offset-2 hover:text-gray-700">
               Terms
             </a>
