@@ -15,17 +15,14 @@ export const metadata: Metadata = {
   },
 }
 
-/** The services that help us run Pet Tale. Keep this list current when a provider changes. */
+/** Kinds of services that help us run Pet Tale (categories, as privacy laws require) */
 const PROVIDERS: { name: string; does: string }[] = [
-  { name: "Supabase", does: "Stores your account, pet details, clips and tales" },
-  { name: "Vercel", does: "Hosts the website and counts visits without cookies" },
-  { name: "Cloudinary", does: "Processes your clip into the finished video" },
-  { name: "TwelveLabs", does: "AI that watches your clip to see what happens" },
-  { name: "OpenAI and Anthropic", does: "AI that writes your pet's story, captions and title" },
-  { name: "ElevenLabs", does: "AI voices that narrate your tale" },
-  { name: "n8n", does: "Connects the steps that make a tale" },
-  { name: "Stripe", does: "Handles payments" },
-  { name: "Postmark", does: "Sends our emails" },
+  { name: "Cloud hosting and storage", does: "Keeps your account, pet details, clips and tales safe" },
+  { name: "Video processing", does: "Turns your clip into the finished video" },
+  { name: "AI services", does: "Watch your clip, write your pet's story and captions, and voice the narration" },
+  { name: "Payments", does: "Handle checkout and billing" },
+  { name: "Email", does: "Send your tale-ready emails, receipts and news" },
+  { name: "Analytics", does: "Count visits so we know what's working" },
 ]
 
 export default function PrivacyPage() {
@@ -45,7 +42,7 @@ export default function PrivacyPage() {
       nutshell={[
         "We collect only what we need to make your tales and run your account.",
         "We don't sell your information, and we don't use it for targeted ads.",
-        "Your clips go to a few trusted services that help make your tales. They're listed below.",
+        "Your clips go to a few trusted services that help make your tales. The kinds of services are listed below.",
         "Private tales stay private. Anyone can watch public tales and tales you share by link.",
         "You can see, fix or delete your information anytime. Just ask.",
       ]}
@@ -69,8 +66,9 @@ export default function PrivacyPage() {
           cookies and similar storage to keep you signed in and remember your settings.
         </p>
         <p>
-          <strong>What others tell us:</strong> Stripe tells us about your plan and payments (amounts, dates, card
-          brand and last four digits, never your full card number). Postmark tells us whether our emails were
+          <strong>What others tell us:</strong> our payment processor tells us about your plan and payments (amounts,
+          dates, card brand and last four digits, never your full card number). Our email provider tells us whether
+          our emails were
           delivered, opened or clicked.
         </p>
       </LegalSection>
@@ -94,7 +92,7 @@ export default function PrivacyPage() {
       <LegalSection id="share" title="3. Who helps us, and who sees what">
         <p>
           <strong>We don&apos;t sell your information</strong>, and we don&apos;t share it for targeted advertising.
-          We share it only with services that help us run Pet Tale:
+          We share it only with the kinds of services that help us run Pet Tale:
         </p>
         <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
           <table className="w-full text-left text-sm">
