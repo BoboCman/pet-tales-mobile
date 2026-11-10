@@ -53,9 +53,8 @@ export default function TermsPage() {
 
       <LegalSection id="what" title="2. What Pet Tale does">
         <p>
-          You upload a clip of your pet. Our AI watches it, writes a short story in your pet&apos;s voice, narrates it
-          and adds captions. The narration replaces the clip&apos;s original sound. Tales made with your free tale
-          carry a small pettaleai.com mark.
+          You upload a clip of your pet, and Pet Tale uses AI to turn it into a short tale you can share. Tales made
+          with your free tale carry a small pettaleai.com mark.
         </p>
         <p>
           We&apos;re always improving Pet Tale, so features, voices and vibes may change or be retired. We work hard to
@@ -73,7 +72,7 @@ export default function TermsPage() {
         </p>
         <p>
           <strong>Your tales are yours to enjoy.</strong> Download them, keep them, and share them anywhere for
-          personal, non-commercial use. Pet Tale itself (the app, our voices and our technology) stays ours. Want to
+          personal, non-commercial use. Pet Tale itself and the technology behind it stay ours. Want to
           use a tale in paid ads or for a business? Just email us first.
         </p>
         <p>
@@ -110,7 +109,7 @@ export default function TermsPage() {
             it. You&apos;re responsible for what you share.
           </li>
           <li>
-            Our voices are fully synthetic characters. They aren&apos;t meant to sound like any real person, and you
+            Our voices are synthetic characters. They aren&apos;t meant to sound like any real person, and you
             may not use them to impersonate anyone.
           </li>
           <li>Tales aren&apos;t veterinary, training or any other professional advice.</li>
@@ -125,6 +124,7 @@ export default function TermsPage() {
           <li>Upload content you don&apos;t have the rights to, or that shows people without their okay.</li>
           <li>Use Pet Tale to impersonate someone, mislead people, or break the law.</li>
           <li>Hack, overload, scrape or work around the security of Pet Tale.</li>
+          <li>Copy, reverse engineer or try to extract how Pet Tale works, or use it to build a competing product.</li>
           <li>Create extra accounts to get more free tales, or resell Pet Tale without our permission.</li>
         </ul>
         <p>If you do, we may remove content or suspend your account.</p>
