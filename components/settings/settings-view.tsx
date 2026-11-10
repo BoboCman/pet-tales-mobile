@@ -309,6 +309,7 @@ export function SettingsView({
           )}
         />
         <Row icon={Shield} label="Privacy policy" href="/privacy" />
+        <Row icon={Shield} label="Your privacy choices" href="/privacy/choices" />
         <Row icon={FileText} label="Terms of service" href="/terms" />
       </Section>
 

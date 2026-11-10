@@ -11,6 +11,7 @@ import { DesktopNav } from "@/components/layout/desktop-nav"
 import { CommandPalette } from "@/components/layout/command-palette"
 import { Analytics } from "@vercel/analytics/react"
 import { InstallPrompt } from "@/components/layout/install-prompt"
+import { MetaPixel } from "@/components/analytics/meta-pixel"
 import { StructuredData } from "@/components/structured-data"
 
 const inter = Inter({ subsets: ["latin"] })
@@ -132,6 +133,7 @@ export default function RootLayout({
           </CreditsProvider>
         </SupabaseProvider>
         <Analytics />
+        <MetaPixel />
         <InstallPrompt />
       </body>
     </html>

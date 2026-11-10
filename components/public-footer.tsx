@@ -9,12 +9,15 @@ export function PublicFooter() {
           <div className="text-sm text-muted-foreground">© {new Date().getFullYear()} Glendale AI, LLC</div>
 
           {/* Links - Right on desktop, bottom on mobile */}
-          <nav className="flex items-center gap-6 text-sm">
+          <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm">
             <Link href="/terms" className="text-muted-foreground hover:text-foreground transition-colors">
               Terms of Service
             </Link>
             <Link href="/privacy" className="text-muted-foreground hover:text-foreground transition-colors">
               Privacy Policy
+            </Link>
+            <Link href="/privacy/choices" className="text-muted-foreground hover:text-foreground transition-colors">
+              Your Privacy Choices
             </Link>
             <a
               href="mailto:pettaleai@gmail.com"

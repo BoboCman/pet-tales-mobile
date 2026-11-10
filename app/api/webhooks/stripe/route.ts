@@ -4,6 +4,7 @@ import { addPurchasedCredits } from "@/lib/credits/operations-admin"
 import { getPackById } from "@/lib/stripe/pack-config"
 import { grantPlanTalesForInvoice, syncSubscription } from "@/lib/credits/subscriptions"
 import { handleChargeRefunded, handleDisputeCreated } from "@/lib/credits/refunds"
+import { metaContextFromMetadata, sendMetaEvent } from "@/lib/meta/capi"
 
 /**
  * STRIPE WEBHOOK HANDLER
@@ -81,6 +82,7 @@ export async function POST(request: NextRequest) {
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 })
       }
+      await sendPurchaseToMeta(eventObject, eventObject.metadata?.planId || "Plan")
       // Tales are granted by invoice.paid, which Stripe sends for the first payment too.
       return NextResponse.json({ received: true, subscription_synced: true })
     }
@@ -207,6 +209,8 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    await sendPurchaseToMeta(session, pack_id)
+
     // STEP 11: Success!
     console.log("[Webhook] ✅ Credits granted successfully:", {
       userId,
@@ -227,6 +231,22 @@ export async function POST(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error"
     return NextResponse.json({ error: `Webhook processing failed: ${errorMessage}` }, { status: 500 })
   }
+}
+
+/** Purchase for Meta ads, only when the buyer allowed ad tracking at checkout. Never throws. */
+async function sendPurchaseToMeta(session: any, contentName: string) {
+  const context = metaContextFromMetadata(session?.metadata)
+  if (!context) return
+  await sendMetaEvent({
+    name: "Purchase",
+    eventId: `purchase-${session.id}`,
+    context,
+    email: session.customer_details?.email || session.customer_email,
+    userId: session.metadata?.userId,
+    value: typeof session.amount_total === "number" ? session.amount_total / 100 : undefined,
+    currency: session.currency || "usd",
+    contentName,
+  })
 }
 
 /**

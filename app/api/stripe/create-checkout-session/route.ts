@@ -6,6 +6,7 @@ import { formatStripeError } from "@/lib/stripe-errors"
 import { getPlanById, getPlanPriceId } from "@/lib/pricing-config"
 import type { CheckoutSessionRequest, CheckoutSessionResponse } from "@/types/stripe"
 import { getAppBaseUrl } from "@/lib/utils/app-url"
+import { metaCheckoutMetadata } from "@/lib/meta/capi"
 
 export const dynamic = "force-dynamic"
 
@@ -118,6 +119,8 @@ export async function POST(request: Request) {
       metadata: {
         userId: userData.id,
         planId: plan.id,
+        // Lets the webhook send the Purchase to Meta (only when this visitor allows ad tracking)
+        ...metaCheckoutMetadata(request),
       },
       customer_update: {
         address: "auto",

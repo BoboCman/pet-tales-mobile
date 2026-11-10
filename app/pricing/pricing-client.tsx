@@ -7,6 +7,7 @@ import { AlertCircle, Check, Coins, Heart, Loader2, Sparkles } from "lucide-reac
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { isStripeTestMode } from "@/lib/stripe/test-mode"
+import { trackMeta } from "@/lib/meta/client"
 import { formatUsd, subscriptionPlans, type PackOffer, type PlanId } from "@/lib/pricing-config"
 
 interface PricingClientProps {
@@ -170,10 +171,16 @@ export default function PricingClient({ pack, availablePlanIds }: PricingClientP
     }
   }
 
-  const buy = (option: PricingOption) =>
-    option.kind === "pack"
+  const buy = (option: PricingOption) => {
+    trackMeta("InitiateCheckout", {
+      value: Number(option.price.replace(/[^0-9.]/g, "")) || undefined,
+      currency: "USD",
+      content_name: option.name,
+    })
+    return option.kind === "pack"
       ? startCheckout(option.id, "/api/stripe/create-pack-checkout", { pack_id: option.id })
       : startCheckout(option.id, "/api/stripe/create-checkout-session", { planId: option.id })
+  }
 
   const countWord = ["no", "one", "two", "three", "four"][options.length] ?? String(options.length)
 

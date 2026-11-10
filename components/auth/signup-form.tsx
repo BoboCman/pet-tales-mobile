@@ -14,6 +14,7 @@ import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
 import { Loader2 } from "lucide-react"
 import { LEGAL_VERSIONS } from "@/lib/constants/legal"
+import { readAttribution, trackMeta } from "@/lib/meta/client"
 
 const signupSchema = z.object({
   email: z.string().min(1, "Email is required").email("Please enter a valid email address"),
@@ -55,6 +56,7 @@ export function SignupForm({ redirectTo }: SignupFormProps) {
       setIsLoading(true)
 
       const consentTimestamp = new Date().toISOString()
+      const attribution = readAttribution()
 
       const { data: authData, error } = await supabase.auth.signUp({
         email: data.email,
@@ -70,6 +72,8 @@ export function SignupForm({ redirectTo }: SignupFormProps) {
             privacy_version: LEGAL_VERSIONS.PRIVACY_VERSION,
             // Copied to users.marketing_opt_in by the signup trigger
             marketing_opt_in: data.marketingOptIn === true,
+            // Which ad or link first brought them here (utm tags, fbclid, ref), for the admin view
+            ...(attribution ? { attribution } : {}),
           },
         },
       })
@@ -105,6 +109,14 @@ export function SignupForm({ redirectTo }: SignupFormProps) {
       // Welcome email (sent once per account; never blocks signup)
       if (authData.session) {
         await fetch("/api/email/welcome", { method: "POST", keepalive: true }).catch(() => {})
+      }
+
+      // Signup for Meta ads: browser pixel + server copy with the same id (no-ops if tracking is off)
+      if (authData.user) {
+        trackMeta("CompleteRegistration", {}, `signup-${authData.user.id}`)
+        if (authData.session) {
+          await fetch("/api/meta/signup", { method: "POST", keepalive: true }).catch(() => {})
+        }
       }
 
       toast({

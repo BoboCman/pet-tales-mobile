@@ -22,6 +22,7 @@ const PROVIDERS: { name: string; does: string }[] = [
   { name: "Payments", does: "Handle checkout and billing" },
   { name: "Email", does: "Send our emails" },
   { name: "Analytics", does: "Count visits so we know what's working" },
+  { name: "Advertising", does: "Show Pet Tale to people who'd enjoy it and tell us which ads work" },
 ]
 
 export default function PrivacyPage() {
@@ -40,7 +41,7 @@ export default function PrivacyPage() {
       }
       nutshell={[
         "We collect only what we need to make your tales and run your account.",
-        "We don't sell your information, and we don't use it for targeted ads.",
+        "We don't sell your information. We use ad partners to see which of our ads work, and you can turn that off anytime.",
         "Your clips go to a few trusted services that help make your tales. The kinds of services are listed below.",
         "Private tales stay private. Anyone can watch public tales and tales you share by link.",
         "You can see, fix or delete your information anytime. Just ask.",
@@ -62,7 +63,8 @@ export default function PrivacyPage() {
         <p>
           <strong>What we collect automatically:</strong> your device and browser type, IP address, the pages and
           features you use, how you found us (for example, a shared tale or an ad link), and error logs. We use
-          cookies and similar storage to keep you signed in and remember your settings.
+          cookies and similar storage to keep you signed in and remember your settings, and, unless you opt out, ad
+          cookies and pixels that tell our ad partners when you visit, sign up or buy.
         </p>
         <p>
           <strong>What others tell us:</strong> our payment processor tells us about your plan and payments (amounts,
@@ -84,14 +86,18 @@ export default function PrivacyPage() {
             this.
           </li>
           <li>To fix problems and make Pet Tale better.</li>
+          <li>
+            To measure our ads and show Pet Tale to people who might enjoy it. You can turn this off on{" "}
+            <Link href="/privacy/choices">Your privacy choices</Link>.
+          </li>
           <li>To follow the law.</li>
         </ul>
       </LegalSection>
 
       <LegalSection id="share" title="3. Who helps us, and who sees what">
         <p>
-          <strong>We don&apos;t sell your information</strong>, and we don&apos;t share it for targeted advertising.
-          We share it only with the kinds of services that help us run Pet Tale:
+          <strong>We don&apos;t sell your information.</strong> We share it only with the kinds of services that
+          help us run Pet Tale:
         </p>
         <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
           <table className="w-full text-left text-sm">
@@ -110,6 +116,14 @@ export default function PrivacyPage() {
         <p>
           These services get only what they need to create your tale. Each handles data under its own terms, and
           some may keep it for a while or use it to improve their services.
+        </p>
+        <p>
+          <strong>Ads.</strong> To see which ads bring people to Pet Tale, our advertising partners get limited
+          information: the pages you visit, when you sign up or buy (and the amount), your device and IP address,
+          and a scrambled (hashed) version of your email. They never get your clips, tales or pet details. Privacy
+          laws may call this &ldquo;sharing&rdquo; or &ldquo;targeted advertising.&rdquo; You can turn it off
+          anytime on <Link href="/privacy/choices">Your privacy choices</Link>, and we treat a Global Privacy Control
+          signal from your browser as a request to opt out.
         </p>
         <p>
           <strong>Your tales.</strong> Tales are private until you share them. Anyone with a share link can watch
@@ -149,6 +163,10 @@ export default function PrivacyPage() {
           <li>Correct it. Most of it you can edit yourself in Settings.</li>
           <li>Delete it. Use Delete account in Settings, or ask us.</li>
           <li>Stop marketing emails with the unsubscribe link in any email.</li>
+          <li>
+            Opt out of ad tracking (&ldquo;sharing&rdquo; for ads) on{" "}
+            <Link href="/privacy/choices">Your privacy choices</Link>.
+          </li>
           <li>Ask us to remove a tale you appear in, or one that shows your child.</li>
         </ul>
         <p>

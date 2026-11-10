@@ -41,6 +41,7 @@ interface UserDetailData {
     daysSinceSignup: number
     isActive: boolean
     isAdmin: boolean
+    attribution?: Record<string, string> | null
   }
   credits: {
     free: number
@@ -349,6 +350,33 @@ export default function UserDetailView({ userId, adminEmail }: UserDetailViewPro
               <div className="text-sm text-gray-500">Signup Date</div>
               <div className="font-medium">{new Date(data.user.signupDate).toLocaleDateString()}</div>
               <div className="text-xs text-gray-500">{data.user.daysSinceSignup} days ago</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Came from</div>
+              {(() => {
+                const a = data.user.attribution
+                if (!a) return <div className="font-medium text-gray-400">Not recorded</div>
+                const source = a.utm_source
+                  ? [a.utm_source, a.utm_medium].filter(Boolean).join(" / ")
+                  : a.fbclid
+                    ? "Facebook / Instagram ad"
+                    : a.ref
+                      ? a.ref.replace(/_/g, " ")
+                      : a.referrer
+                        ? a.referrer.replace(/^https?:\/\//, "").split("/")[0]
+                        : "Direct"
+                return (
+                  <>
+                    <div className="font-medium capitalize">{source}</div>
+                    {(a.utm_campaign || a.utm_content) && (
+                      <div className="text-xs text-gray-500 break-all">
+                        {[a.utm_campaign, a.utm_content].filter(Boolean).join(" · ")}
+                      </div>
+                    )}
+                    {a.landing_page && <div className="text-xs text-gray-500">Landed on {a.landing_page}</div>}
+                  </>
+                )
+              })()}
             </div>
             <div>
               <div className="text-sm text-gray-500">Last Active</div>
