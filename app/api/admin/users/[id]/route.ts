@@ -65,6 +65,15 @@ async function handler(request: Request, context: any & { params: { id: string }
       .order("created_at", { ascending: false })
       .limit(50)
 
+    // Where they came from (saved at signup from utm tags, fbclid or ?ref=)
+    let attribution: Record<string, string> | null = null
+    try {
+      const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(userId)
+      attribution = (authUser?.user?.user_metadata?.attribution as Record<string, string>) || null
+    } catch {
+      attribution = null
+    }
+
     // Calculate statistics
     const totalVideos = videos?.length || 0
     const totalViews = videos?.reduce((sum, v) => sum + (v.view_count || 0), 0) || 0
@@ -95,6 +104,7 @@ async function handler(request: Request, context: any & { params: { id: string }
           daysSinceSignup,
           isActive,
           isAdmin: user.is_admin || false,
+          attribution,
         },
         credits: {
           free: user.free_credits || 0,

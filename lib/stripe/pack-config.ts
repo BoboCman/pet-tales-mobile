@@ -21,13 +21,15 @@ export const TRY_PACK = { id: "try_pack", tales: 3, price: 2.99 } as const
 /**
  * Server-only: the Stripe price to charge for a pack. STRIPE_PACK_<ID>_PRICE_ID (e.g.
  * STRIPE_PACK_TRY_PACK_PRICE_ID) wins over credit_packs.stripe_price_id, so the price can live in
- * Vercel with the plan prices instead of in the table.
+ * Vercel with the plan prices instead of in the table. A product ID (prod_...) is accepted too:
+ * resolvePackPrice turns it into that product's price.
  */
 export function getPackPriceId(pack: Pick<CreditPack, "id" | "stripe_price_id">): string | null {
   const id = pack.id.toUpperCase()
   const fromEnv = (process.env[`STRIPE_PACK_${id}_PRICE_ID`] || process.env[`STRIPE_${id}_PRICE_ID`])?.trim()
-  if (fromEnv) return fromEnv
-  return pack.stripe_price_id?.startsWith("price_") ? pack.stripe_price_id : null
+  if (fromEnv?.startsWith("price_") || fromEnv?.startsWith("prod_")) return fromEnv
+  const fromTable = pack.stripe_price_id?.trim()
+  return fromTable?.startsWith("price_") || fromTable?.startsWith("prod_") ? fromTable : null
 }
 
 /** Server-only: packs are shown and sold only when SHOW_CREDIT_PACKS=true */

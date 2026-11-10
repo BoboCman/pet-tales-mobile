@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useToast } from "@/hooks/use-toast"
 import type { PackOffer } from "@/lib/pricing-config"
+import { trackMeta } from "@/lib/meta/client"
 
 /** Starts Stripe checkout for the one-time pack, from anywhere in the app */
 export function useBuyPack() {
@@ -11,6 +12,7 @@ export function useBuyPack() {
 
   const buy = async (pack: PackOffer) => {
     setBuying(true)
+    trackMeta("InitiateCheckout", { value: pack.priceCents / 100, currency: "USD", content_name: "Try pack" })
     try {
       const res = await fetch("/api/stripe/create-pack-checkout", {
         method: "POST",

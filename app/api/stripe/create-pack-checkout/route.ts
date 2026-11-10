@@ -7,6 +7,7 @@ import { getPackById, packsEnabled } from "@/lib/stripe/pack-config"
 import { resolvePackPrice } from "@/lib/stripe/pack-offer"
 import { isStripeTestMode, TEST_CARD_INFO } from "@/lib/stripe/test-mode"
 import { getAppBaseUrl } from "@/lib/utils/app-url"
+import { metaCheckoutMetadata } from "@/lib/meta/capi"
 
 export const dynamic = "force-dynamic"
 
@@ -120,6 +121,8 @@ export async function POST(request: Request) {
         userId: userData.id,
         pack_id: pack.id,
         pack_credits: pack.credits.toString(),
+        // Lets the webhook send the Purchase to Meta (only when this visitor allows ad tracking)
+        ...metaCheckoutMetadata(request),
       },
       customer_update: {
         address: "auto",
