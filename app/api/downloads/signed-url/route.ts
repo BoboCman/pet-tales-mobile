@@ -1,5 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getSignedDownloadUrl } from "@/lib/storage/getSignedDownloadUrl"
+import { createClient } from "@/lib/supabase/server"
+import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function GET() {
   return NextResponse.json({ error: "Method not allowed" }, { status: 405 })
@@ -30,6 +32,22 @@ export async function POST(request: NextRequest) {
           headers: { "Cache-Control": "no-store" },
         },
       )
+    }
+
+    // Only the tale's owner can download it (admins too, for support)
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: "Sign in required" }, { status: 401, headers: { "Cache-Control": "no-store" } })
+    }
+    const [{ data: entry }, { data: me }] = await Promise.all([
+      supabaseAdmin.from("diary_entries").select("user_id").eq("id", entryId).maybeSingle(),
+      supabaseAdmin.from("users").select("is_admin").eq("id", user.id).maybeSingle(),
+    ])
+    if (!entry || (entry.user_id !== user.id && !me?.is_admin)) {
+      return NextResponse.json({ error: "Tale not found" }, { status: 404, headers: { "Cache-Control": "no-store" } })
     }
 
     const result = await getSignedDownloadUrl(entryId, filename)

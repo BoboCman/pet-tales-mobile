@@ -2,12 +2,13 @@
 
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Heart, Share2, Eye, Play, Lock, Globe, Download } from "lucide-react"
+import { ArrowLeft, Heart, Share2, Eye, Play, Lock, Globe, Download, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getPublicUrl } from "@/lib/supabase/url-utils"
 import { useToast } from "@/hooks/use-toast"
 import { getVoiceByValue } from "@/lib/voice-personalities"
 import { NARRATION_GENRES } from "@/lib/narration-genres"
+import { useSaveToPhone } from "@/components/reels/use-save-to-phone"
 
 interface DiaryEntry {
   id: string
@@ -108,6 +109,23 @@ export function MobileReelDetail({
   const vibeLabel = vibeGenre?.label || "Unknown Vibe"
 
   const hasDownloadableVideo = !!reel.merged_video_supabase_url
+
+  const dateStamp = new Date(reel.created_at).toISOString().split("T")[0].replace(/-/g, "")
+  const saver = useSaveToPhone({
+    entryId: reel.id,
+    filenameHint: `${petName}-${reel.title || "Pet Tale"}-${dateStamp}`.replace(/[^a-zA-Z0-9-]/g, "-"),
+    canSave: hasDownloadableVideo && !!onDownload,
+    onFallbackDownload: () => onDownload?.(),
+  })
+  const { prefetch } = saver
+
+  // Once the tale has loaded, quietly get the file ready so Save opens the share sheet instantly
+  const videoLoaded = !isLoading || isPlaying
+  useEffect(() => {
+    if (!videoLoaded) return
+    const t = setTimeout(prefetch, 1500)
+    return () => clearTimeout(t)
+  }, [videoLoaded, prefetch])
 
   useEffect(() => {
     const video = videoRef.current
@@ -354,36 +372,70 @@ export function MobileReelDetail({
           <span className="text-white text-xs mt-1 font-medium">{likeCount}</span>
         </div>
 
-        {/* Share - icon only */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onShare}
-          className="w-12 h-12 rounded-full bg-black/30 backdrop-blur-sm hover:bg-black/50 text-white"
-        >
-          <Share2 className="h-7 w-7" />
-        </Button>
-
-        {/* Download - icon only */}
-        {onDownload && (
+        {/* Share the tale link */}
+        <div className="flex flex-col items-center">
           <Button
             variant="ghost"
             size="icon"
-            onClick={onDownload}
-            disabled={isDownloading || !hasDownloadableVideo}
-            className={`w-12 h-12 rounded-full backdrop-blur-sm hover:bg-black/50 text-white ${
-              !hasDownloadableVideo ? "bg-black/20 text-white/50" : "bg-black/30"
-            }`}
-            title={!hasDownloadableVideo ? "Video not ready yet." : undefined}
+            onClick={onShare}
+            aria-label="Share"
+            className="w-12 h-12 rounded-full bg-black/30 backdrop-blur-sm hover:bg-black/50 text-white"
           >
-            {isDownloading ? (
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white" />
-            ) : (
-              <Download className="h-7 w-7" />
-            )}
+            <Share2 className="h-7 w-7" />
           </Button>
+          <span className="text-white text-xs mt-1 font-medium">Share</span>
+        </div>
+
+        {/* Save to phone */}
+        {onDownload && (
+          <div className="flex flex-col items-center">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={saver.save}
+              disabled={saver.state === "preparing" || isDownloading || !hasDownloadableVideo}
+              aria-label={saver.isIOS ? "Save to Photos" : "Save to phone"}
+              className={`w-12 h-12 rounded-full backdrop-blur-sm hover:bg-black/50 text-white ${
+                !hasDownloadableVideo ? "bg-black/20 text-white/50" : "bg-black/30"
+              }`}
+              title={!hasDownloadableVideo ? "Video not ready yet." : undefined}
+            >
+              {saver.state === "preparing" || isDownloading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                <Download className="h-7 w-7" />
+              )}
+            </Button>
+            <span className="text-white text-xs mt-1 font-medium">
+              {saver.state === "preparing" ? "Getting…" : "Save"}
+            </span>
+          </div>
         )}
       </div>
+
+      {/* The video finished downloading after the tap expired: one more tap opens the share sheet */}
+      {saver.state === "ready-to-tap" && (
+        <div className="absolute inset-0 z-30 flex items-end bg-black/50" onClick={saver.cancelReady}>
+          <div
+            className="w-full rounded-t-3xl bg-white px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-5 text-center dark:bg-gray-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-base font-semibold text-gray-900 dark:text-white">Your tale is ready to save</p>
+            <p className="mt-1 text-sm text-gray-500">Tap below, then choose &ldquo;Save Video&rdquo;.</p>
+            <button
+              type="button"
+              onClick={saver.saveReady}
+              className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal-600 text-[15px] font-semibold text-white active:bg-teal-700"
+            >
+              <Download className="h-5 w-5" />
+              Save to Photos
+            </button>
+            <button type="button" onClick={saver.cancelReady} className="mt-2 h-11 w-full text-sm font-medium text-gray-500">
+              Not now
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
