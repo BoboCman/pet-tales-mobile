@@ -140,7 +140,7 @@ function dispatch(action: Action) {
 }
 
 // Mobile-optimized toast function
-function toast({ duration, ...props }: ToastProps) {
+function toast({ duration, ...props }: ToastProps & { action?: ToastActionElement }) {
   const id = genId()
 
   // Use mobile-optimized duration if not specified
