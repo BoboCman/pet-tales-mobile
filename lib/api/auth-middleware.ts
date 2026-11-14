@@ -12,6 +12,7 @@ import type {
 } from "./types"
 import { logFailedAuth, logRateLimitHit } from "./audit-logger"
 import { withSecurityHeaders } from "./security-headers"
+import { hasAdminMfa } from "@/lib/admin/mfa"
 
 // Admin cache to reduce database queries
 const adminCache = new Map<string, { isAdmin: boolean; timestamp: number }>()
@@ -376,6 +377,11 @@ export function requireAdmin(
       await logFailedAuth(ipAddress, adminError || "Not an admin")
 
       return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 })
+    }
+
+    // Admin APIs need a session that passed the authenticator code step (getUser checked this token)
+    if (!hasAdminMfa(session?.access_token)) {
+      return NextResponse.json({ error: "Two-factor code required", code: "MFA_REQUIRED" }, { status: 403 })
     }
 
     const adminContext: AdminContext = {

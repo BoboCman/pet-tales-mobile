@@ -52,8 +52,8 @@ export default function AdminLoginPage() {
         return
       }
 
-      // Success - redirect to dashboard
-      router.push("/admin/dashboard")
+      // Password OK: next, the authenticator code
+      router.push("/admin/mfa")
       router.refresh()
     } catch (err) {
       console.error("Login error:", err)

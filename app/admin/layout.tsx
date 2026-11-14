@@ -18,7 +18,8 @@ export default function AdminLayout({
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  const isLoginPage = pathname === "/admin/login"
+  // The sign-in and code pages bring their own screen (the middleware guards the code page)
+  const isLoginPage = pathname === "/admin/login" || pathname === "/admin/mfa"
 
   useEffect(() => {
     async function checkAuth() {
