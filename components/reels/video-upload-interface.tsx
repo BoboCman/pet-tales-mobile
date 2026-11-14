@@ -18,7 +18,7 @@ import type { PackOffer } from "@/lib/pricing-config"
 import Link from "next/link"
 import { getVoicesByPetType } from "@/lib/voice-personalities"
 import { NARRATION_GENRES } from "@/lib/narration-genres"
-import { useToast } from "@/components/ui/use-toast" // Import useToast
+import { useToast } from "@/hooks/use-toast" // the store the app's <Toaster /> shows
 import { VoicePicker } from "./voice-picker-sheet"
 import { QuickPetFields, quickPetDefaults, type QuickPetValues } from "./quick-pet-fields"
 import { looksLikeVideo } from "@/lib/video/clip-file"
