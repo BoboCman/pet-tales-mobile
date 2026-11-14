@@ -9,9 +9,9 @@ export default async function PetPersonalityPage({
   searchParams,
 }: {
   params: { id: string }
-  searchParams?: { next?: string }
+  searchParams?: { next?: string; welcome?: string }
 }) {
   const pet = await getPetById(params.id)
   if (!pet) notFound()
-  return <PersonalityQuiz pet={pet} next={searchParams?.next} />
+  return <PersonalityQuiz pet={pet} next={searchParams?.next} welcome={searchParams?.welcome === "1"} />
 }

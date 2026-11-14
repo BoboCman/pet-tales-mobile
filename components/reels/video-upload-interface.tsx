@@ -20,7 +20,7 @@ import { getVoicesByPetType } from "@/lib/voice-personalities"
 import { NARRATION_GENRES } from "@/lib/narration-genres"
 import { useToast } from "@/hooks/use-toast" // the store the app's <Toaster /> shows
 import { VoicePicker } from "./voice-picker-sheet"
-import { QuickPetFields, quickPetDefaults, type QuickPetValues } from "./quick-pet-fields"
+import { PetBasicsFields, newPetDefaults, type PetBasicsValues } from "@/components/pets/pet-basics"
 import { readClipInfo, checkClip, friendlyUploadError, reportUploadFailure, type ClipInfo } from "@/lib/video/clip-check"
 
 interface Pet {
@@ -111,7 +111,7 @@ const getTopPersonalityTraits = (pet: Pet): string => {
 export function VideoUploadInterface({ pets, selectedPetId, pack = null }: VideoUploadInterfaceProps) {
   const router = useRouter()
   const { supabase } = useSupabase()
-  const { uploadPetVideo } = useDirectUpload()
+  const { uploadPetVideo, uploadPetPhoto } = useDirectUpload()
   const { toast } = useToast() // Declare useToast
 
   // Refs for file inputs
@@ -127,7 +127,7 @@ export function VideoUploadInterface({ pets, selectedPetId, pack = null }: Video
   const [narrationStyle, setNarrationStyle] = useState("british_narrator")
   const [narrationGenre, setNarrationGenre] = useState("comedy")
   const [isAddingPet, setIsAddingPet] = useState(pets.length === 0)
-  const [quickPet, setQuickPet] = useState<QuickPetValues>({ name: "", type: "dog", gender: "male" })
+  const [quickPet, setQuickPet] = useState<PetBasicsValues>({ name: "", type: "dog", gender: "male", photo: null })
   const [createdPet, setCreatedPet] = useState<Pet | null>(null)
   const [clipSeconds, setClipSeconds] = useState<number | null>(null)
   const [clipInfo, setClipInfo] = useState<ClipInfo | null>(null)
@@ -243,9 +243,12 @@ export function VideoUploadInterface({ pets, selectedPetId, pack = null }: Video
   const ensurePet = async (userId: string): Promise<Pet> => {
     if (!isAddingPet && selectedPet) return selectedPet
     if (createdPet) return createdPet
+    // The photo is a nice-to-have here: if it fails, the tale still goes ahead
+    let image_url: string | null = null
+    if (quickPet.photo) image_url = await uploadPetPhoto(quickPet.photo).catch(() => null)
     const { data, error } = await supabase
       .from("pets")
-      .insert({ ...quickPetDefaults(quickPet), user_id: userId })
+      .insert({ ...newPetDefaults(quickPet), image_url, user_id: userId })
       .select()
       .single()
     if (error || !data) {
@@ -731,7 +734,7 @@ export function VideoUploadInterface({ pets, selectedPetId, pack = null }: Video
           <StepHeading n={1} title="Who's the star?" />
           {isAddingPet ? (
             <div className="rounded-2xl border-2 border-teal-200 bg-white p-4 dark:border-teal-800 dark:bg-gray-900">
-              <QuickPetFields values={quickPet} onChange={setQuickPet} />
+              <PetBasicsFields compact values={quickPet} onChange={setQuickPet} />
               {pets.length > 0 && (
                 <Button
                   variant="link"

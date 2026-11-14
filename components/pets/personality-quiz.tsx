@@ -1,31 +1,14 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Loader2, Sparkles } from "lucide-react"
+import { ChevronLeft, Loader2, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { useSupabase } from "@/lib/supabase/provider"
+import { AGES } from "@/lib/pets/options"
 import { cleanQuirks, QUIRKS_MAX, traitQuestions, type PersonalityPet, type TraitKey } from "@/lib/pets/personality"
-
-const AGES: Record<string, { label: string; value: string }[]> = {
-  dog: [
-    { label: "Puppy", value: "Puppy: 0–1 year" },
-    { label: "Young", value: "Young Adult: 1–3 years" },
-    { label: "Adult", value: "Adult: 4–7 years" },
-    { label: "Mature", value: "Mature Adult: 8–10 years" },
-    { label: "Senior", value: "Senior: 11–14 years" },
-    { label: "Golden oldie", value: "Geriatric: 15+ years" },
-  ],
-  cat: [
-    { label: "Kitten", value: "Kitten: 0–1 year" },
-    { label: "Young", value: "Young Adult: 1–3 years" },
-    { label: "Adult", value: "Adult: 4–8 years" },
-    { label: "Mature", value: "Mature Adult: 9–12 years" },
-    { label: "Senior", value: "Senior: 13–17 years" },
-    { label: "Golden oldie", value: "Geriatric: 18+ years" },
-  ],
-}
 
 type QuizPet = PersonalityPet & { id: string; name: string; gender?: string | null; pet_age?: string | null }
 
@@ -33,7 +16,7 @@ type QuizPet = PersonalityPet & { id: string; name: string; gender?: string | nu
  * "Who is {name}, really?" Six one-tap questions instead of the slider form. Every answer
  * feeds the persona that writes the narration, so tales start sounding like this pet.
  */
-export function PersonalityQuiz({ pet, next }: { pet: QuizPet; next?: string }) {
+export function PersonalityQuiz({ pet, next, welcome }: { pet: QuizPet; next?: string; welcome?: boolean }) {
   const router = useRouter()
   const { supabase } = useSupabase()
   const { toast } = useToast()
@@ -54,6 +37,7 @@ export function PersonalityQuiz({ pet, next }: { pet: QuizPet; next?: string }) 
 
   const pronoun = pet.gender === "female" ? "her" : pet.gender === "male" ? "him" : "them"
   const fill = (s: string) => s.replace(/\{name\}/g, pet.name)
+  const leaveTo = next && next.startsWith("/") ? next : "/dashboard/pets"
 
   async function save() {
     setSaving(true)
@@ -66,7 +50,7 @@ export function PersonalityQuiz({ pet, next }: { pet: QuizPet; next?: string }) 
       const { error } = await supabase.from("pets").update(update).eq("id", pet.id)
       if (error) throw error
       toast({ title: `Got it. Next tale will sound more like ${pet.name}.` })
-      router.push(next && next.startsWith("/") ? next : "/dashboard/pets")
+      router.push(leaveTo)
       router.refresh()
     } catch (e) {
       toast({
@@ -79,8 +63,18 @@ export function PersonalityQuiz({ pet, next }: { pet: QuizPet; next?: string }) 
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-6 pb-32 space-y-6">
+    <div className="max-w-md mx-auto px-4 pt-6 pb-44 space-y-6">
+      {!welcome && (
+        <Link
+          href={leaveTo}
+          className="-ml-1 -mb-4 inline-flex h-9 items-center text-sm font-medium text-gray-500 active:text-gray-700"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Back
+        </Link>
+      )}
       <header className="text-center space-y-2">
+        {welcome && <p className="text-sm font-semibold text-teal-700">{pet.name} is all set. One optional step:</p>}
         <div className="mx-auto h-12 w-12 rounded-full bg-teal-50 flex items-center justify-center">
           <Sparkles className="h-6 w-6 text-teal-600" />
         </div>
@@ -161,12 +155,20 @@ export function PersonalityQuiz({ pet, next }: { pet: QuizPet; next?: string }) 
         </p>
       </section>
 
-      <div className="fixed inset-x-0 bottom-16 md:bottom-0 bg-white/95 backdrop-blur border-t p-4">
+      <div className="fixed inset-x-0 bottom-0 z-20 bg-white/95 backdrop-blur border-t p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <div className="max-w-md mx-auto">
           <Button onClick={save} disabled={saving} className="w-full h-12 text-base bg-teal-600 hover:bg-teal-700">
             {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
             Save {pet.name}&apos;s personality
           </Button>
+          {welcome && (
+            <Link
+              href={leaveTo}
+              className="mt-2 flex h-10 items-center justify-center text-sm font-medium text-gray-500 active:text-gray-700"
+            >
+              Skip for now
+            </Link>
+          )}
         </div>
       </div>
     </div>

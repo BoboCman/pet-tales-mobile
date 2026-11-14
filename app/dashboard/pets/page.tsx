@@ -19,20 +19,26 @@ export default async function PetsPage({ searchParams }: PetsPageProps) {
   // Tales left (to flag when it's time for a plan) and finished tales per pet
   let talesLeft: number | null = null
   const taleCounts: Record<string, number> = {}
+  const latestTale: Record<string, string> = {}
   if (user?.id) {
     const supabase = createClient()
     const [{ data: balance }, { data: entries }] = await Promise.all([
       supabase.from("users").select("free_credits, purchased_credits").eq("id", user.id).maybeSingle(),
       supabase
         .from("diary_entries")
-        .select("pet_id")
+        .select("id, pet_id")
         .eq("user_id", user.id)
         .neq("billing_status", "billing_required")
         .eq("merged_video_status", "completed")
-        .not("merged_video_url", "is", null),
+        .not("merged_video_url", "is", null)
+        .order("created_at", { ascending: false }),
     ])
     if (balance) talesLeft = (balance.free_credits ?? 0) + (balance.purchased_credits ?? 0)
-    for (const e of entries || []) if (e.pet_id) taleCounts[e.pet_id] = (taleCounts[e.pet_id] || 0) + 1
+    for (const e of entries || []) {
+      if (!e.pet_id) continue
+      taleCounts[e.pet_id] = (taleCounts[e.pet_id] || 0) + 1
+      latestTale[e.pet_id] ??= e.id
+    }
   }
 
   if (pets.length === 0) {
@@ -88,7 +94,7 @@ export default async function PetsPage({ searchParams }: PetsPageProps) {
 
       <div className="grid grid-cols-1 gap-3 px-4 pt-4 sm:grid-cols-2">
         {pets.map((pet: PetCardPet) => (
-          <PetCardNew key={pet.id} pet={pet} taleCount={taleCounts[pet.id] || 0} />
+          <PetCardNew key={pet.id} pet={pet} taleCount={taleCounts[pet.id] || 0} latestTaleId={latestTale[pet.id]} />
         ))}
       </div>
     </div>

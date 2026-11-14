@@ -1,7 +1,7 @@
 /**
  * Pet personality, as the narration pipeline uses it: five 1-5 traits (energy, sociability,
  * confidence, plus obedience/play style for dogs or curiosity/territorial for cats) turned into
- * a persona by n8n. Labels match components/pets/personality-traits.tsx and the n8n prompt.
+ * a persona by n8n. Labels match the n8n prompt.
  */
 
 export type PersonalityPet = {

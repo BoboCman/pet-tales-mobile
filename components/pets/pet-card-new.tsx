@@ -5,6 +5,7 @@ import Link from "next/link"
 import { ChevronRight, Film, MoreHorizontal, Pencil, Plus, Sparkles } from "lucide-react"
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { PetAvatar } from "@/components/reels/tale-poster"
+import { petAvatarUrl } from "@/lib/pets/avatar"
 import { isPersonalized, type PersonalityPet } from "@/lib/pets/personality"
 
 export type PetCardPet = PersonalityPet & {
@@ -27,7 +28,15 @@ const personalityLabels = {
 const label = (trait: keyof typeof personalityLabels, value: number | null | undefined) =>
   value && value >= 1 && value <= 5 ? personalityLabels[trait][value - 1] : null
 
-export function PetCardNew({ pet, taleCount = 0 }: { pet: PetCardPet; taleCount?: number }) {
+export function PetCardNew({
+  pet,
+  taleCount = 0,
+  latestTaleId,
+}: {
+  pet: PetCardPet
+  taleCount?: number
+  latestTaleId?: string
+}) {
   const [menuOpen, setMenuOpen] = useState(false)
   const personalized = isPersonalized(pet)
   const isCat = pet.type?.toLowerCase().includes("cat")
@@ -37,10 +46,7 @@ export function PetCardNew({ pet, taleCount = 0 }: { pet: PetCardPet; taleCount?
       : [label("obedience", pet.personality_obedience), label("playStyle", pet.personality_play_style)]
   ).filter(Boolean)
 
-  const image =
-    [pet.image_url, pet.avatar_url, pet.photo_url].find(
-      (u) => typeof u === "string" && u.startsWith("http"),
-    ) ?? null
+  const image = petAvatarUrl(pet, latestTaleId)
   const kind = pet.breed || (pet.type ? pet.type.charAt(0).toUpperCase() + pet.type.slice(1) : "Pet")
   const personalityHref = `/dashboard/pets/${pet.id}/personality?next=/dashboard/pets`
 
@@ -137,7 +143,7 @@ export function PetCardNew({ pet, taleCount = 0 }: { pet: PetCardPet; taleCount?
               className="flex h-12 items-center gap-3 rounded-xl bg-gray-50 px-4 font-medium text-gray-900 active:bg-gray-100 dark:bg-gray-800 dark:text-white"
             >
               <Pencil className="h-5 w-5 text-teal-600" />
-              Edit name, photo and breed
+              Edit name, photo, breed and age
             </Link>
           </div>
         </DrawerContent>

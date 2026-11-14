@@ -1,5 +1,5 @@
-import { NewPetForm } from "@/components/pets/new-pet-form"
+import { PetForm } from "@/components/pets/pet-form"
 
 export default function NewPetPage() {
-  return <NewPetForm />
+  return <PetForm />
 }

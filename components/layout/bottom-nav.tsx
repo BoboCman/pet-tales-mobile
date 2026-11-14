@@ -44,9 +44,13 @@ const SIGNED_OUT_TABS: Tab[] = [
   { href: "/auth/login", label: "Sign In", icon: LogIn, match: (p) => p.startsWith("/auth") },
 ]
 
-/** Full-screen pages that bring their own controls: the tale viewers and the new tale screen */
+/** Full-screen pages that bring their own controls: the tale viewers, the new tale screen and the pet forms */
 function isHiddenOn(path: string) {
-  return /^\/community\/public\/[^/]+$/.test(path) || /^\/dashboard\/reels\/[^/]+$/.test(path)
+  return (
+    /^\/community\/public\/[^/]+$/.test(path) ||
+    /^\/dashboard\/reels\/[^/]+$/.test(path) ||
+    /^\/dashboard\/pets\/(new|[^/]+\/(edit|personality))$/.test(path)
+  )
 }
 
 const AUTH_CACHE_KEY = "pettale:signed-in"
