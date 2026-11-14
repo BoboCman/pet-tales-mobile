@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { hasAdminMfa } from "@/lib/admin/mfa"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { getAppBaseUrl } from "@/lib/utils/app-url"
 import { internalAuthHeaders } from "@/lib/api/internal-auth"
@@ -320,9 +321,9 @@ export async function OPTIONS() {
 
 /** Admin debug endpoint: returns a 401/403 response unless the caller is a signed-in admin */
 async function requireAdminRequest(request: Request): Promise<NextResponse | null> {
-  const { user } = await verifySession(request)
+  const { user, session } = await verifySession(request)
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const { isAdmin } = await verifyAdmin(user.id)
-  if (!isAdmin) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  if (!isAdmin || !hasAdminMfa(session?.access_token)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   return null
 }

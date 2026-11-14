@@ -1,6 +1,7 @@
 import { updateSession } from "@/lib/supabase/middleware"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { ADMIN_MFA_PATH, hasAdminMfa } from "@/lib/admin/mfa"
 
 const ensureSessionCookie = (res: NextResponse, request: NextRequest) => {
   if (!request.cookies.get("pt_session")) {
@@ -83,6 +84,13 @@ export async function middleware(request: NextRequest) {
       if (!userData || !userData.is_admin) {
         const redirectUrl = new URL("/admin/login", request.url)
         const redirectRes = NextResponse.redirect(redirectUrl)
+        ensureSessionCookie(redirectRes, request)
+        return redirectRes
+      }
+
+      // Admin pages need the authenticator code too (the token was just checked by the query above)
+      if (pathname !== ADMIN_MFA_PATH && !hasAdminMfa(session.access_token)) {
+        const redirectRes = NextResponse.redirect(new URL(ADMIN_MFA_PATH, request.url))
         ensureSessionCookie(redirectRes, request)
         return redirectRes
       }
