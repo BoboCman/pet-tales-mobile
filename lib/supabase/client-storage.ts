@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from "uuid"
 import { useSupabase } from "./provider"
 import { clientLogger } from "@/lib/client-logger"
 import { createClient } from "@supabase/supabase-js"
+import { storageTypeFor } from "@/lib/video/clip-file"
 
 export function useDirectUpload() {
   const { supabase } = useSupabase()
@@ -23,7 +24,9 @@ export function useDirectUpload() {
         throw new Error(`File size exceeds ${maxSizeMB}MB limit`)
       }
 
-      const fileExt = file.name.split(".").pop()
+      // Videos get a clean .mov/.mp4 name and type (clips from other apps can be "x.MOV.3gp" or untyped)
+      const videoType = bucket === "pet-videos" ? storageTypeFor(file) : null
+      const fileExt = videoType?.ext ?? file.name.split(".").pop()
       const fileName = `${uuidv4()}.${fileExt}`
 
       clientLogger.info("Storage", "Starting file upload to storage")
@@ -38,6 +41,7 @@ export function useDirectUpload() {
       const { data, error } = await supabase.storage.from(bucket).upload(fileName, file, {
         cacheControl: "3600",
         upsert: true,
+        ...(videoType ? { contentType: videoType.contentType } : {}),
         onUploadProgress: (progress) => {
           if (onProgress) {
             const percent = Math.round((progress.loaded / progress.total) * 100)

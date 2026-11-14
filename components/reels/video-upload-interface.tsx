@@ -21,6 +21,7 @@ import { NARRATION_GENRES } from "@/lib/narration-genres"
 import { useToast } from "@/components/ui/use-toast" // Import useToast
 import { VoicePicker } from "./voice-picker-sheet"
 import { QuickPetFields, quickPetDefaults, type QuickPetValues } from "./quick-pet-fields"
+import { looksLikeVideo } from "@/lib/video/clip-file"
 
 interface Pet {
   id: string
@@ -218,8 +219,8 @@ export function VideoUploadInterface({ pets, selectedPetId, pack = null }: Video
       return
     }
 
-    // Validate file type
-    if (!file.type.startsWith("video/")) {
+    // Validate file type (clips saved from other apps can be "x.MOV.3gp" or have no type)
+    if (!looksLikeVideo(file)) {
       toast({
         title: "Invalid file type",
         description: "Please select a video file.",
