@@ -2,7 +2,8 @@ import Link from "next/link"
 import type { Metadata } from "next"
 import { LegalPage, LegalSection, ContactEmail } from "@/components/legal/legal-page"
 import { LEGAL_VERSIONS } from "@/lib/constants/legal"
-import { FREE_TIER, subscriptionPlans } from "@/lib/pricing-config"
+import { FREE_TIER, packLabel, subscriptionPlans } from "@/lib/pricing-config"
+import { getPackOffer } from "@/lib/stripe/pack-offer"
 
 export const metadata: Metadata = {
   title: "Terms of Service",
@@ -16,7 +17,10 @@ export const metadata: Metadata = {
   },
 }
 
-export default function TermsPage() {
+export const dynamic = "force-dynamic"
+
+export default async function TermsPage() {
+  const pack = await getPackOffer()
   return (
     <LegalPage
       title="Terms of Service"
@@ -36,7 +40,8 @@ export default function TermsPage() {
       }
       nutshell={[
         "You own your videos. We use them to make, store and show your tales.",
-        "Only upload clips you're allowed to share, and check that anyone else in them is okay with it.",
+        "Only upload clips you're allowed to use, including any music, other people's footage, and anyone who appears in them.",
+        "Share your tales anywhere, including on creator accounts that earn money. Paid ads need our okay first.",
         "Tales are made by AI, so give each one a quick look before you share it.",
         "Plans renew monthly until you cancel in Settings. Pack tales never expire.",
         "Payments are non-refundable, but if a tale fails on our side, you get that tale back.",
@@ -71,14 +76,22 @@ export default function TermsPage() {
           working well and to make it better.
         </p>
         <p>
-          <strong>Your tales are yours to enjoy.</strong> Download them, keep them, and share them anywhere for
-          personal, non-commercial use. Pet Tale itself and the technology behind it stay ours. Want to
-          use a tale in paid ads or for a business? Just email us first.
+          <strong>Your tales are made to share.</strong> Download them, keep them, and post them anywhere, including
+          on your own social or creator accounts that earn money from views or platform programs. What needs our
+          written okay first: using a tale in paid advertising, selling or licensing tales as a product, or offering
+          Pet Tale&apos;s voices or tale-making to others as a service. Pet Tale itself, our voices and the technology
+          behind it stay ours.
+        </p>
+        <p>
+          <strong>About AI-made parts.</strong> Your own footage stays yours. The narration, voice and captions are
+          made by AI, and the law may not treat AI-made material as anyone&apos;s exclusive property, so we can&apos;t
+          promise those parts are unique to you or protected by copyright.
         </p>
         <p>
           <strong>Private, shared and public tales.</strong> A tale is private until you share it. Anyone with a share
           link can watch that tale. If you make a tale public, it shows in our Community, and you let us feature it on
-          Pet Tale and our social channels until you make it private again or ask us to take it down. Public tales and
+          Pet Tale and in our own unpaid social media posts until you make it private again or ask us to take it
+          down. We&apos;ll always ask you first before using your tale in paid advertising. Public tales and
           share links keep working after you delete your account, unless you make them private first or ask us to
           remove them.
         </p>
@@ -90,8 +103,9 @@ export default function TermsPage() {
 
       <LegalSection id="people" title="4. People in your videos">
         <p>
-          Pets are the stars, but family and friends sometimes make a cameo. Before you upload, make sure the people
-          in your clip are okay with it being turned into a tale and shared. If a child appears, you need to be their
+          Pets are the stars, but family and friends sometimes make a cameo. By uploading a clip, you confirm you have
+          the rights and permissions needed to turn it into a tale and share it. That includes everyone who appears
+          in it, any music playing in it, and any footage that someone else made. If a child appears, you need to be their
           parent or guardian, or have their parent&apos;s permission. We can&apos;t check this for you, so it&apos;s
           your responsibility.
         </p>
@@ -157,7 +171,8 @@ export default function TermsPage() {
           We&apos;ll tell you before any price change, so you can cancel before it applies.
         </p>
         <p>
-          <strong>Tale packs</strong> are a one-time purchase at the price shown at checkout. Pack tales never expire
+          <strong>Tale packs</strong> are a one-time purchase at the price shown at checkout
+          {pack ? ` (right now, ${packLabel(pack)})` : ""}. Pack tales never expire
           while your account is open. We use your plan tales first, so pack tales stay saved for later.
         </p>
         <p>
