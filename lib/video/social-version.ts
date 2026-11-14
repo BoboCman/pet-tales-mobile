@@ -11,7 +11,7 @@ cloudinary.config({
 
 /**
  * "For socials" copy of a finished tale: the tale's title burned into the top, plus the small
- * pettaleai.com mark (free tales already have it, so it isn't added twice). The tale page shows the
+ * pettaleai.com line (free tales already have the mark, so it isn't added twice). The tale page shows the
  * title as page text, so a plain download loses it; this copy keeps it when posted to TikTok,
  * Reels or used in an ad.
  *
@@ -31,7 +31,7 @@ export function overlayTitle(title: string | null | undefined): string {
 }
 
 /** Bump when the look changes, so already-made copies are rendered again in the new style */
-const STYLE_VERSION = "v2"
+const STYLE_VERSION = "v3"
 
 function socialPath(entryId: string, title: string) {
   const v = createHash("sha1").update(`${STYLE_VERSION}:${title}`).digest("hex").slice(0, 8)
@@ -81,52 +81,46 @@ export async function ensureSocialVersion(entry: {
     const scale = width / 720
     const watermarked = await shouldWatermark(entry.user_id, entry.created_at)
 
-    // Modern caption-card look: Poppins (a Google Font Cloudinary loads by name), white on a soft
-    // see-through dark card with rounded corners. The card's padding is a border in the same colour.
-    const card = "rgb:0000006b" // black at ~42%
-    const pill = "rgb:00000059" // black at ~35%
-    const build = (font: string) => {
-      const transformation: Record<string, unknown>[] = [
-        {
-          overlay: {
-            font_family: font,
-            font_size: Math.round(46 * scale),
-            font_weight: "bold",
-            text_align: "center",
-            line_spacing: Math.round(-4 * scale),
-            text: title,
-          },
-          color: "white",
-          background: card,
-          border: `${Math.round(18 * scale)}px_solid_${card}`,
-          radius: Math.round(30 * scale),
-          width: Math.round(width * 0.8),
-          crop: "fit",
-        },
-        {
-          flags: "layer_apply",
-          gravity: "north",
-          y: Math.round(height * 0.07),
-        },
-      ]
-      if (!watermarked) {
-        // Small brand pill under the title, where the free-tale mark sits
-        transformation.push(
-          {
-            overlay: {
-              font_family: font,
-              font_size: Math.round(26 * scale),
-              font_weight: "bold",
-              text: "pettaleai.com",
+    // Modern caption look: Poppins (a Google Font Cloudinary loads by name), bare white text with a soft
+    // shadow so nothing covers the video. The shadow is a blurred, see-through black copy of the same text
+    // laid underneath; if Cloudinary refuses the blur, a thin outline keeps the text readable instead.
+    type Look = "shadow" | "outline"
+    const build = (font: string, look: Look) => {
+      const transformation: Record<string, unknown>[] = []
+      const text = (value: string, size: number, y: number | string, wrap: boolean) => {
+        const base = {
+          font_family: font,
+          font_size: Math.round(size * scale),
+          font_weight: "bold",
+          text_align: "center",
+          line_spacing: Math.round(-4 * scale),
+          text: value,
+          ...(look === "outline" ? { stroke: "stroke" } : {}),
+        }
+        const fit = wrap ? { width: Math.round(width * 0.84), crop: "fit" } : {}
+        if (look === "shadow") {
+          transformation.push(
+            { overlay: base, color: "black", opacity: 55, effect: `blur:${Math.round(120 * scale)}`, ...fit },
+            { flags: "layer_apply", gravity: "north", y: typeof y === "number" ? y + Math.round(3 * scale) : y },
+          )
+          transformation.push({ overlay: base, color: "white", ...fit }, { flags: "layer_apply", gravity: "north", y })
+        } else {
+          transformation.push(
+            {
+              overlay: base,
+              color: "white",
+              border: `${Math.max(2, Math.round(3 * scale))}px_solid_rgb:000000b3`,
+              ...fit,
             },
-            color: "white",
-            background: pill,
-            border: `${Math.round(10 * scale)}px_solid_${pill}`,
-            radius: Math.round(24 * scale),
-          },
-          { flags: "layer_apply", gravity: "north", y: 0.19 },
-        )
+            { flags: "layer_apply", gravity: "north", y },
+          )
+        }
       }
+
+      text(title, 50, Math.round(height * 0.07), true)
+      // Small brand line under the title, where the free-tale mark sits
+      if (!watermarked) text("pettaleai.com", 26, Math.round(height * 0.19), false)
+
       transformation.push({
         video_codec: "h264",
         audio_codec: "aac",
@@ -141,14 +135,24 @@ export async function ensureSocialVersion(entry: {
       })
     }
 
-    // If the Google Font can't be loaded for some reason, a plain Arial copy beats no copy
-    let video: Buffer
-    try {
-      video = await fetchRendered(build("Poppins"))
-    } catch (error) {
-      console.warn("[social-version] Poppins render failed, retrying with Arial:", error)
-      video = await fetchRendered(build("Arial"))
+    // Best look first; if Cloudinary can't do it (font or effect), a simpler copy beats no copy
+    const attempts: [string, Look][] = [
+      ["Poppins", "shadow"],
+      ["Poppins", "outline"],
+      ["Arial", "outline"],
+    ]
+    let video: Buffer | null = null
+    let lastError: unknown
+    for (const [font, look] of attempts) {
+      try {
+        video = await fetchRendered(build(font, look))
+        break
+      } catch (error) {
+        lastError = error
+        console.warn(`[social-version] ${font}/${look} render failed:`, error)
+      }
     }
+    if (!video) throw lastError
 
     const { error } = await supabaseAdmin.storage.from(BUCKET).upload(path, video, {
       contentType: "video/mp4",
