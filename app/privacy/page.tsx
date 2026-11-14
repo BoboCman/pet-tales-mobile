@@ -127,8 +127,9 @@ export default function PrivacyPage() {
         </p>
         <p>
           <strong>Your tales.</strong> Tales are private until you share them. Anyone with a share link can watch
-          that tale, and public tales appear in our Community for everyone. Once something is shared, we can&apos;t
-          control where others pass it on.
+          that tale, and public tales appear in our Community for everyone. We may feature public tales in our own
+          unpaid social media posts, and we&apos;ll ask you first before using one in paid ads. Once something is
+          shared, we can&apos;t control where others pass it on.
         </p>
         <p>
           <strong>Other times.</strong> We may share information when the law requires it, to protect someone&apos;s
