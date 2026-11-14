@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Share2, Lock, Download, Copy, Info, Globe } from "lucide-react"
+import { ArrowLeft, Share2, Lock, Download, Copy, Info, Globe, Clapperboard } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
@@ -570,7 +570,7 @@ export default function ReelDetailPage() {
   }
 
   const handleDownload = useCallback(
-    async (entryId: string) => {
+    async (entryId: string, kind: "original" | "social" = "original") => {
       if (isDownloading) return // Prevent double taps
 
       setIsDownloading(true)
@@ -579,7 +579,8 @@ export default function ReelDetailPage() {
 
       toast({
         title: "Preparing download…",
-        description: "Getting your video ready to save",
+        description:
+          kind === "social" ? "Adding the title to your video. This can take up to a minute." : "Getting your video ready to save",
       })
 
       try {
@@ -600,6 +601,7 @@ export default function ReelDetailPage() {
           body: JSON.stringify({
             entryId,
             filename: filenameHint,
+            variant: kind,
           }),
         })
 
@@ -1064,6 +1066,21 @@ export default function ReelDetailPage() {
                     Download Tale
                   </Button>
                   <p className="text-xs text-gray-500 mt-1.5 font-light">Post to TikTok, Instagram, or YouTube</p>
+                </div>
+
+                <div>
+                  <Button
+                    onClick={() => handleDownload(reel.id, "social")}
+                    disabled={isDownloading || !hasDownloadableVideo}
+                    variant="outline"
+                    className="w-full border-teal-600 text-teal-600 hover:bg-teal-50 font-medium h-11 justify-start text-[15px]"
+                  >
+                    <Clapperboard className="h-4 w-4 mr-2" />
+                    Download for socials
+                  </Button>
+                  <p className="text-xs text-gray-500 mt-1.5 font-light">
+                    With the tale&apos;s title on top and pettaleai.com, ready for Reels, TikTok or ads
+                  </p>
                 </div>
 
                 <div>

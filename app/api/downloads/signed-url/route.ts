@@ -4,6 +4,9 @@ import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { hasAdminMfa } from "@/lib/admin/mfa"
 
+// The first "For socials" download renders the titled copy, which can take a little while
+export const maxDuration = 120
+
 export async function GET() {
   return NextResponse.json({ error: "Method not allowed" }, { status: 405 })
 }
@@ -24,6 +27,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { entryId, filename } = body
+    const variant = body.variant === "social" ? "social" : "original"
 
     if (!entryId || typeof entryId !== "string") {
       return NextResponse.json(
@@ -59,7 +63,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Tale not found" }, { status: 404, headers: { "Cache-Control": "no-store" } })
     }
 
-    const result = await getSignedDownloadUrl(entryId, filename)
+    const result = await getSignedDownloadUrl(
+      entryId,
+      variant === "social" && typeof filename === "string" ? `${filename.replace(/\.mp4$/i, "")}-social` : filename,
+      variant,
+    )
 
     console.log("📥 Download requested:", {
       entryId,
