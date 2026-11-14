@@ -1,8 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { checkVideoUploadRateLimit } from "@/lib/redis/rate-limiter"
-import { getClientIP } from "@/lib/utils/ip-address"
+import { checkUploadLimit } from "@/lib/rate-limit/uploads"
 
 export interface RateLimitCheckResult {
   success: boolean
@@ -14,78 +13,27 @@ export interface RateLimitCheckResult {
 }
 
 /**
- * Server action to check video upload rate limits
- * Called before any storage operations in the upload flow
+ * Pre-check before the browser uploads a clip, so a person over the hourly limit
+ * finds out before waiting on the upload. /api/video/upload checks again.
  */
 export async function checkUploadRateLimit(): Promise<RateLimitCheckResult> {
-  try {
-    console.log("[v0] Starting upload rate limit check", {
-      event: "rate_limit_check_start",
-    })
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-    // Get current user
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
+  // Not signed in: the upload API rejects it anyway
+  if (!user) {
+    return { success: true, message: "No user", limit: 0, remaining: 0, resetTime: Date.now() }
+  }
 
-    // Get client IP address
-    const ipAddress = await getClientIP()
-
-    console.log("[v0] Rate limit check context", {
-      event: "rate_limit_context",
-      hasUser: !!user,
-      userId: user?.id,
-      ipAddress,
-    })
-
-    // Check rate limit
-    const rateLimitResult = await checkVideoUploadRateLimit(user?.id || null, ipAddress)
-
-    if (!rateLimitResult.success) {
-      console.log("[v0] Rate limit check failed", {
-        event: "rate_limit_denied",
-        userId: user?.id,
-        ipAddress,
-        remaining: rateLimitResult.remaining,
-        retryAfter: rateLimitResult.retryAfter,
-      })
-
-      return {
-        success: false,
-        message: `Upload limit reached. You can upload ${rateLimitResult.limit} videos per hour. Try again in ${Math.ceil((rateLimitResult.retryAfter || 0) / 60)} minutes.`,
-        limit: rateLimitResult.limit,
-        remaining: rateLimitResult.remaining,
-        resetTime: rateLimitResult.resetTime,
-        retryAfter: rateLimitResult.retryAfter,
-      }
-    }
-
-    console.log("[v0] Rate limit check passed", {
-      event: "rate_limit_allowed",
-      userId: user?.id,
-      ipAddress,
-      remaining: rateLimitResult.remaining,
-    })
-
+  const result = await checkUploadLimit(supabase, user.id)
+  if (!result.success) {
+    const minutes = Math.max(1, Math.ceil((result.retryAfter || 0) / 60))
     return {
-      success: true,
-      message: "Rate limit check passed",
-      limit: rateLimitResult.limit,
-      remaining: rateLimitResult.remaining,
-      resetTime: rateLimitResult.resetTime,
-    }
-  } catch (error) {
-    console.error("[v0] Rate limit check error:", error)
-
-    // Fail open - allow upload if rate limiting fails
-    return {
-      success: true,
-      message: "Rate limit check completed (failsafe)",
-      limit: 3,
-      remaining: 2,
-      resetTime: Date.now() + 60 * 60 * 1000,
+      ...result,
+      message: `You can start ${result.limit} tales an hour. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
     }
   }
+  return { ...result, message: "Rate limit check passed" }
 }
