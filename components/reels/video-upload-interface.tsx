@@ -21,7 +21,7 @@ import { NARRATION_GENRES } from "@/lib/narration-genres"
 import { useToast } from "@/hooks/use-toast" // the store the app's <Toaster /> shows
 import { VoicePicker } from "./voice-picker-sheet"
 import { QuickPetFields, quickPetDefaults, type QuickPetValues } from "./quick-pet-fields"
-import { looksLikeVideo } from "@/lib/video/clip-file"
+import { readClipInfo, checkClip, friendlyUploadError, reportUploadFailure, type ClipInfo } from "@/lib/video/clip-check"
 
 interface Pet {
   id: string
@@ -130,6 +130,7 @@ export function VideoUploadInterface({ pets, selectedPetId, pack = null }: Video
   const [quickPet, setQuickPet] = useState<QuickPetValues>({ name: "", type: "dog", gender: "male" })
   const [createdPet, setCreatedPet] = useState<Pet | null>(null)
   const [clipSeconds, setClipSeconds] = useState<number | null>(null)
+  const [clipInfo, setClipInfo] = useState<ClipInfo | null>(null)
   const [showClipPlayer, setShowClipPlayer] = useState(false)
   const [mode, setMode] = useState<"select" | "upload" | "camera" | "preview">("select")
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -205,29 +206,18 @@ export function VideoUploadInterface({ pets, selectedPetId, pack = null }: Video
     }
   }, [mode])
 
-  const handleFileSelection = (file: File) => {
+  const handleFileSelection = async (file: File) => {
     if (!file) return
 
-    // Validate file size (75MB limit)
-    const MAX_SIZE = 75 * 1024 * 1024
-    if (file.size > MAX_SIZE) {
-      toast({
-        title: "File too large",
-        description: "Please select a video smaller than 75MB.",
-        variant: "destructive",
-      })
+    // Check the clip right away (format, size, length) so problems show up before Create
+    const info = await readClipInfo(file)
+    const problem = checkClip(file, info)
+    if (problem) {
+      toast({ title: problem.title, description: problem.tip, variant: "destructive", duration: 10000 })
+      reportUploadFailure({ stage: "picked", reason: problem.reason, file, info })
       return
     }
-
-    // Validate file type (clips saved from other apps can be "x.MOV.3gp" or have no type)
-    if (!looksLikeVideo(file)) {
-      toast({
-        title: "Invalid file type",
-        description: "Please select a video file.",
-        variant: "destructive",
-      })
-      return
-    }
+    setClipInfo(info)
 
     setSelectedFile(file)
 
@@ -276,10 +266,15 @@ export function VideoUploadInterface({ pets, selectedPetId, pack = null }: Video
       return
     }
 
+    let failedStage = "preparing"
+    const step = (name: typeof currentStep) => {
+      failedStage = name
+      setCurrentStep(name)
+    }
     try {
       setIsUploading(true)
       setUploadProgress(0)
-      setCurrentStep("preparing")
+      step("preparing")
 
       clientLogger.info("DataUpload", "Starting video upload process")
       clientLogger.dev("DataUpload", "Upload details", {
@@ -289,7 +284,7 @@ export function VideoUploadInterface({ pets, selectedPetId, pack = null }: Video
         narrationGenre,
       })
 
-      setCurrentStep("checking_credits")
+      step("checking_credits")
       const balanceCheck = await preflightBalanceCheck()
 
       if (!balanceCheck.ok) {
@@ -324,7 +319,7 @@ export function VideoUploadInterface({ pets, selectedPetId, pack = null }: Video
       setCreditBalance(balanceCheck.balance)
       setIsOutOfCredits(false)
 
-      setCurrentStep("checking_rate_limit")
+      step("checking_rate_limit")
       const rateLimitCheck = await checkUploadRateLimit()
 
       if (!rateLimitCheck.success) {
@@ -342,7 +337,7 @@ export function VideoUploadInterface({ pets, selectedPetId, pack = null }: Video
       })
 
       // Get current user
-      setCurrentStep("authenticating")
+      step("authenticating")
       const {
         data: { user },
       } = await supabase.auth.getUser()
@@ -354,7 +349,7 @@ export function VideoUploadInterface({ pets, selectedPetId, pack = null }: Video
       const pet = await ensurePet(user.id)
 
       // Upload video to Supabase storage
-      setCurrentStep("uploading_video")
+      step("uploading_video")
       setUploadProgress(10)
 
       const videoUrl = await uploadPetVideo(selectedFile, (progress) => {
@@ -372,7 +367,7 @@ export function VideoUploadInterface({ pets, selectedPetId, pack = null }: Video
       setUploadProgress(80)
 
       // Prepare webhook payload
-      setCurrentStep("processing")
+      step("processing")
       clientLogger.dev("DataUpload", "Preparing webhook payload", {
         narrationStyle,
         narrationGenre,
@@ -429,7 +424,9 @@ export function VideoUploadInterface({ pets, selectedPetId, pack = null }: Video
       if (!response.ok) {
         const error = await response.text()
         clientLogger.error("DataUpload", "Webhook failed", { status: response.status })
-        throw new Error("Processing failed - please try again")
+        throw Object.assign(new Error(`Start failed (${response.status}): ${error.slice(0, 300)}`), {
+          statusCode: response.status,
+        })
       }
 
       setUploadProgress(100)
@@ -466,10 +463,14 @@ export function VideoUploadInterface({ pets, selectedPetId, pack = null }: Video
       // router.refresh()
     } catch (error) {
       clientLogger.error("DataUpload", "Upload failed", error)
-      toast({
-        title: "Upload failed",
-        description: error instanceof Error ? error.message : "Failed to upload video",
-        variant: "destructive",
+      const friendly = friendlyUploadError(error)
+      toast({ title: friendly.title, description: friendly.tip, variant: "destructive", duration: 10000 })
+      reportUploadFailure({
+        stage: failedStage === "uploading_video" ? "upload" : "start",
+        reason: friendly.reason,
+        message: error instanceof Error ? error.message : String(error),
+        file: selectedFile,
+        info: clipInfo,
       })
     } finally {
       setIsUploading(false)

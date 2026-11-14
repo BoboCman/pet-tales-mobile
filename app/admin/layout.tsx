@@ -107,6 +107,9 @@ export default function AdminLayout({
               <Link href="/admin/videos" className={pathname?.startsWith("/admin/videos") ? "font-semibold text-teal-700" : "text-gray-600 hover:text-gray-900"}>
                 Videos
               </Link>
+              <Link href="/admin/uploads" className={pathname?.startsWith("/admin/uploads") ? "font-semibold text-teal-700" : "text-gray-600 hover:text-gray-900"}>
+                Uploads
+              </Link>
               <Link href="/admin/captions" className={pathname?.startsWith("/admin/captions") ? "font-semibold text-teal-700" : "text-gray-600 hover:text-gray-900"}>
                 Captions
               </Link>
