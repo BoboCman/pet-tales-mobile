@@ -38,7 +38,11 @@ export function useDirectUpload() {
       })
 
       // Upload file with progress tracking
-      const { data, error } = await supabase.storage.from(bucket).upload(fileName, file, {
+      // storage-js sends a File as form data with the File's own type and ignores contentType,
+      // so re-label the clip itself (no copy: the new File points at the same bytes)
+      const body = videoType ? new File([file], fileName, { type: videoType.contentType }) : file
+
+      const { data, error } = await supabase.storage.from(bucket).upload(fileName, body, {
         cacheControl: "3600",
         upsert: true,
         ...(videoType ? { contentType: videoType.contentType } : {}),
