@@ -143,7 +143,7 @@ export function PetForm({ pet }: { pet?: EditablePet }) {
           <ChevronLeft className="h-4 w-4" />
           {pet ? pet.name : "Your pets"}
         </Link>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{pet ? `Edit ${pet.name}` : "Meet your pet"}</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{pet ? `Edit ${pet.name}` : "Add a pet"}</h1>
         {!pet && <p className="text-gray-500">Just the basics. You can tell us more any time.</p>}
       </header>
 
