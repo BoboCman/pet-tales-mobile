@@ -2,17 +2,8 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { deductCredit, refundCredit } from "@/lib/credits/operations-admin"
-import { checkRateLimit } from "@/lib/redis/rate-limiter"
+import { checkUploadLimit, MAX_TALES_PER_HOUR } from "@/lib/rate-limit/uploads"
 import { cleanQuirks } from "@/lib/pets/personality"
-
-// Server-side upload limit, shared across serverless instances via Redis (Upstash).
-// Separate key from the client pre-check (video_upload, 3/hour) so one upload isn't counted twice.
-const MAX_UPLOADS_PER_HOUR = 20
-const UPLOAD_API_RATE_LIMIT = {
-  limit: MAX_UPLOADS_PER_HOUR,
-  windowMs: 60 * 60 * 1000,
-  keyPrefix: "video_upload_api",
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     const userId = user.id
 
-    const rateLimitResult = await checkRateLimit(userId, UPLOAD_API_RATE_LIMIT)
+    const rateLimitResult = await checkUploadLimit(supabase, userId)
     if (!rateLimitResult.success) {
       const retryAfter = Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000)
       console.warn("⚠️ Rate limit exceeded for video upload:", {
@@ -50,7 +41,7 @@ export async function POST(request: NextRequest) {
           status: 429,
           headers: {
             "Retry-After": retryAfter.toString(),
-            "X-RateLimit-Limit": MAX_UPLOADS_PER_HOUR.toString(),
+            "X-RateLimit-Limit": MAX_TALES_PER_HOUR.toString(),
             "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
             "X-RateLimit-Reset": rateLimitResult.resetTime.toString(),
           },
