@@ -39,28 +39,37 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Only the tale's owner can download it (admins too, for support)
+    // The clean original: only the tale's owner (admins too, for support).
+    // The "for socials" copy (title + pettaleai.com burned in) of a PUBLIC tale: anyone, signed in
+    // or not, since the tale is public anyway and every saved copy points back to Pet Tale.
     const supabase = await createClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: "Sign in required" }, { status: 401, headers: { "Cache-Control": "no-store" } })
-    }
-    const [{ data: entry }, { data: me }] = await Promise.all([
-      supabaseAdmin.from("diary_entries").select("user_id").eq("id", entryId).maybeSingle(),
-      supabaseAdmin.from("users").select("is_admin").eq("id", user.id).maybeSingle(),
-    ])
-    // An admin can fetch someone else's tale only from a session that passed the authenticator code
-    let adminWithMfa = false
-    if (me?.is_admin && entry && entry.user_id !== user.id) {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      adminWithMfa = hasAdminMfa(session?.access_token)
-    }
-    if (!entry || (entry.user_id !== user.id && !adminWithMfa)) {
-      return NextResponse.json({ error: "Tale not found" }, { status: 404, headers: { "Cache-Control": "no-store" } })
+    const { data: entry } = await supabaseAdmin
+      .from("diary_entries")
+      .select("user_id, is_public, billing_status")
+      .eq("id", entryId)
+      .maybeSingle()
+    const publicSocial =
+      variant === "social" && entry?.is_public === true && entry.billing_status !== "billing_required"
+
+    if (!publicSocial) {
+      if (!user) {
+        return NextResponse.json({ error: "Sign in required" }, { status: 401, headers: { "Cache-Control": "no-store" } })
+      }
+      const { data: me } = await supabaseAdmin.from("users").select("is_admin").eq("id", user.id).maybeSingle()
+      // An admin can fetch someone else's tale only from a session that passed the authenticator code
+      let adminWithMfa = false
+      if (me?.is_admin && entry && entry.user_id !== user.id) {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+        adminWithMfa = hasAdminMfa(session?.access_token)
+      }
+      if (!entry || (entry.user_id !== user.id && !adminWithMfa)) {
+        return NextResponse.json({ error: "Tale not found" }, { status: 404, headers: { "Cache-Control": "no-store" } })
+      }
     }
 
     const result = await getSignedDownloadUrl(
