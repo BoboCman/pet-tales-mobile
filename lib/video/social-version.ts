@@ -30,8 +30,11 @@ export function overlayTitle(title: string | null | undefined): string {
   return clean.slice(0, 70) || "A Pet Tale"
 }
 
+/** Bump when the look changes, so already-made copies are rendered again in the new style */
+const STYLE_VERSION = "v2"
+
 function socialPath(entryId: string, title: string) {
-  const v = createHash("sha1").update(title).digest("hex").slice(0, 8)
+  const v = createHash("sha1").update(`${STYLE_VERSION}:${title}`).digest("hex").slice(0, 8)
   return { folder: "social", name: `pet-tale-${entryId}-${v}.mp4` }
 }
 
@@ -78,36 +81,80 @@ export async function ensureSocialVersion(entry: {
     const scale = width / 720
     const watermarked = await shouldWatermark(entry.user_id, entry.created_at)
 
-    const transformation: Record<string, unknown>[] = [
-      // Title: big, white with a dark outline (reads on any background), wraps to two lines
-      {
-        overlay: { font_family: "Arial", font_size: Math.round(50 * scale), font_weight: "bold", text_align: "center", text: title },
-        color: "white",
-        border: `${Math.max(3, Math.round(5 * scale))}px_solid_rgb:000000b3`,
-        width: Math.round(width * 0.86),
-        crop: "fit",
-      },
-      { flags: "layer_apply", gravity: "north", y: Math.round(height * 0.07) },
-    ]
-    if (!watermarked) {
-      // Same spot and style as the free-tale mark, so every shared copy points back to the app
-      transformation.push(
+    // Modern caption-card look: Poppins (a Google Font Cloudinary loads by name), white on a soft
+    // see-through dark card with rounded corners. The card's padding is a border in the same colour.
+    const card = "rgb:0000006b" // black at ~42%
+    const pill = "rgb:00000059" // black at ~35%
+    const build = (font: string) => {
+      const transformation: Record<string, unknown>[] = [
         {
-          overlay: { font_family: "Arial", font_size: Math.round(34 * scale), font_weight: "bold", stroke: "stroke", text: "pettaleai.com" },
+          overlay: {
+            font_family: font,
+            font_size: Math.round(46 * scale),
+            font_weight: "bold",
+            text_align: "center",
+            line_spacing: Math.round(-4 * scale),
+            text: title,
+          },
           color: "white",
-          border: `${Math.max(2, Math.round(4 * scale))}px_solid_rgb:000000b3`,
+          background: card,
+          border: `${Math.round(18 * scale)}px_solid_${card}`,
+          radius: Math.round(30 * scale),
+          width: Math.round(width * 0.8),
+          crop: "fit",
         },
-        { flags: "layer_apply", gravity: "north", y: 0.19 },
-      )
+        {
+          flags: "layer_apply",
+          gravity: "north",
+          y: Math.round(height * 0.07),
+        },
+      ]
+      if (!watermarked) {
+        // Small brand pill under the title, where the free-tale mark sits
+        transformation.push(
+          {
+            overlay: {
+              font_family: font,
+              font_size: Math.round(26 * scale),
+              font_weight: "bold",
+              text: "pettaleai.com",
+            },
+            color: "white",
+            background: pill,
+            border: `${Math.round(10 * scale)}px_solid_${pill}`,
+            radius: Math.round(24 * scale),
+          },
+          { flags: "layer_apply", gravity: "north", y: 0.19 },
+        )
+      }
+      transformation.push({
+        video_codec: "h264",
+        audio_codec: "aac",
+        quality: "auto:good",
+      })
+
+      return cloudinary.url(publicId, {
+        resource_type: "video",
+        format: "mp4",
+        secure: true,
+        transformation,
+      })
     }
-    transformation.push({ video_codec: "h264", audio_codec: "aac", quality: "auto:good" })
 
-    const url = cloudinary.url(publicId, { resource_type: "video", format: "mp4", secure: true, transformation })
-    const video = await fetchRendered(url)
+    // If the Google Font can't be loaded for some reason, a plain Arial copy beats no copy
+    let video: Buffer
+    try {
+      video = await fetchRendered(build("Poppins"))
+    } catch (error) {
+      console.warn("[social-version] Poppins render failed, retrying with Arial:", error)
+      video = await fetchRendered(build("Arial"))
+    }
 
-    const { error } = await supabaseAdmin.storage
-      .from(BUCKET)
-      .upload(path, video, { contentType: "video/mp4", upsert: true, cacheControl: "31536000" })
+    const { error } = await supabaseAdmin.storage.from(BUCKET).upload(path, video, {
+      contentType: "video/mp4",
+      upsert: true,
+      cacheControl: "31536000",
+    })
     if (error) throw new Error(`Saving the social copy failed: ${error.message}`)
     return { bucket: BUCKET, path }
   } finally {
