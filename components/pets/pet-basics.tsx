@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 import { DEFAULT_AGE, DEFAULT_BREED, type PetKind } from "@/lib/pets/options"
 
 /**
- * The one "Meet your pet" block: photo, name, dog/cat, boy/girl. Used on the Create screen,
+ * The one pet basics block: photo, name, dog/cat, boy/girl. Used on the Create screen,
  * Add pet and Edit pet, so a pet is described the same way everywhere.
  */
 export interface PetBasicsValues {
