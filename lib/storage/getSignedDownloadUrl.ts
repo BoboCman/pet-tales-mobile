@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { ensureSocialVersion } from "@/lib/video/social-version"
 
 interface SignedDownloadResult {
   url: string
@@ -12,12 +13,17 @@ interface SignedDownloadResult {
  * @param proposedFilename - Optional custom filename (will be sanitized)
  * @returns Promise with signed URL, expiry date, and sanitized filename
  */
-export async function getSignedDownloadUrl(entryId: string, proposedFilename?: string): Promise<SignedDownloadResult> {
+export async function getSignedDownloadUrl(
+  entryId: string,
+  proposedFilename?: string,
+  variant: "original" | "social" = "original",
+): Promise<SignedDownloadResult> {
   const { data: entry, error: fetchError } = await supabaseAdmin
     .from("diary_entries")
     .select(`
       id,
       title,
+      user_id,
       merged_video_supabase_url,
       merged_video_url,
       created_at,
@@ -53,6 +59,20 @@ export async function getSignedDownloadUrl(entryId: string, proposedFilename?: s
 
   if (!storagePath) {
     throw new Error("No downloadable video available")
+  }
+
+  // "For socials": the same tale with its title burned in (made once, then reused)
+  if (variant === "social") {
+    const { data: pub } = supabaseAdmin.storage.from(bucket).getPublicUrl(storagePath)
+    const social = await ensureSocialVersion({
+      id: entry.id,
+      title: entry.title,
+      user_id: (entry as { user_id?: string | null }).user_id ?? null,
+      created_at: entry.created_at,
+      sourceUrl: pub.publicUrl,
+    })
+    bucket = social.bucket
+    storagePath = social.path
   }
 
   const petName = entry.pets?.name || "Pet"

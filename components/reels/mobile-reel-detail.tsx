@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Heart, Share2, Eye, Play, Lock, Globe, Download, Loader2 } from "lucide-react"
+import { ArrowLeft, Heart, Share2, Eye, Play, Lock, Globe, Download, Loader2, Clapperboard } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getPublicUrl } from "@/lib/supabase/url-utils"
 import { useToast } from "@/hooks/use-toast"
@@ -118,6 +118,15 @@ export function MobileReelDetail({
     onFallbackDownload: () => onDownload?.(),
   })
   const { prefetch } = saver
+  // The same tale with its title burned in, for TikTok, Reels and ads
+  const socialSaver = useSaveToPhone({
+    entryId: reel.id,
+    filenameHint: `${petName}-${reel.title || "Pet Tale"}-${dateStamp}`.replace(/[^a-zA-Z0-9-]/g, "-"),
+    canSave: hasDownloadableVideo && !!onDownload,
+    onFallbackDownload: () => onDownload?.(),
+    variant: "social",
+  })
+  const readySaver = saver.state === "ready-to-tap" ? saver : socialSaver.state === "ready-to-tap" ? socialSaver : null
 
   // Once the tale has loaded, quietly get the file ready so Save opens the share sheet instantly
   const videoLoaded = !isLoading || isPlaying
@@ -347,7 +356,7 @@ export function MobileReelDetail({
         )}
       </div>
 
-      <div className="absolute right-4 bottom-40 flex flex-col gap-6 z-20">
+      <div className="absolute right-4 bottom-40 flex flex-col gap-4 z-20">
         {/* Views - icon only with count */}
         <div className="flex flex-col items-center">
           <div className="w-12 h-12 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center">
@@ -411,11 +420,34 @@ export function MobileReelDetail({
             </span>
           </div>
         )}
+
+        {/* Save the copy with the title on top (made on first tap, takes a few seconds) */}
+        {onDownload && hasDownloadableVideo && (
+          <div className="flex flex-col items-center">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={socialSaver.save}
+              disabled={socialSaver.state === "preparing"}
+              aria-label="Save with title, for social media"
+              className="w-12 h-12 rounded-full bg-black/30 backdrop-blur-sm hover:bg-black/50 text-white"
+            >
+              {socialSaver.state === "preparing" ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                <Clapperboard className="h-7 w-7" />
+              )}
+            </Button>
+            <span className="text-white text-xs mt-1 font-medium">
+              {socialSaver.state === "preparing" ? "Making…" : "Socials"}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* The video finished downloading after the tap expired: one more tap opens the share sheet */}
-      {saver.state === "ready-to-tap" && (
-        <div className="absolute inset-0 z-30 flex items-end bg-black/50" onClick={saver.cancelReady}>
+      {readySaver && (
+        <div className="absolute inset-0 z-30 flex items-end bg-black/50" onClick={readySaver.cancelReady}>
           <div
             className="w-full rounded-t-3xl bg-white px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-5 text-center dark:bg-gray-900"
             onClick={(e) => e.stopPropagation()}
@@ -424,13 +456,13 @@ export function MobileReelDetail({
             <p className="mt-1 text-sm text-gray-500">Tap below, then choose &ldquo;Save Video&rdquo;.</p>
             <button
               type="button"
-              onClick={saver.saveReady}
+              onClick={readySaver.saveReady}
               className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal-600 text-[15px] font-semibold text-white active:bg-teal-700"
             >
               <Download className="h-5 w-5" />
               Save to Photos
             </button>
-            <button type="button" onClick={saver.cancelReady} className="mt-2 h-11 w-full text-sm font-medium text-gray-500">
+            <button type="button" onClick={readySaver.cancelReady} className="mt-2 h-11 w-full text-sm font-medium text-gray-500">
               Not now
             </button>
           </div>

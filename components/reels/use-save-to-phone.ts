@@ -34,12 +34,12 @@ function saveDataOn() {
   return c?.saveData === true
 }
 
-async function getSignedUrl(entryId: string, filenameHint: string) {
+async function getSignedUrl(entryId: string, filenameHint: string, variant: "original" | "social" = "original") {
   const res = await fetch("/api/downloads/signed-url", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ entryId, filename: filenameHint }),
+    body: JSON.stringify({ entryId, filename: filenameHint, variant }),
   })
   if (!res.ok) throw Object.assign(new Error("signed-url"), { status: res.status })
   const data = await res.json()
@@ -52,6 +52,7 @@ export function useSaveToPhone({
   filenameHint,
   canSave,
   onFallbackDownload,
+  variant = "original",
 }: {
   entryId: string
   filenameHint: string
@@ -59,6 +60,8 @@ export function useSaveToPhone({
   canSave: boolean
   /** The existing download flow, for browsers that can't share files */
   onFallbackDownload: () => void
+  /** "social": the copy with the title burned in, made on first request (no prefetch) */
+  variant?: "original" | "social"
 }) {
   const { toast } = useToast()
   const [state, setState] = useState<SaveState>("idle")
@@ -72,7 +75,7 @@ export function useSaveToPhone({
     if (pendingRef.current) return pendingRef.current
     pendingRef.current = (async () => {
       try {
-        const { url, filename } = await getSignedUrl(entryId, filenameHint)
+        const { url, filename } = await getSignedUrl(entryId, filenameHint, variant)
         const res = await fetch(url, { credentials: "omit" })
         if (!res.ok) throw new Error(`video ${res.status}`)
         const blob = await res.blob()
@@ -90,13 +93,13 @@ export function useSaveToPhone({
       }
     })()
     return pendingRef.current
-  }, [entryId, filenameHint])
+  }, [entryId, filenameHint, variant])
 
   /** Call once the tale is playing: gets the file ready so Save is instant (iPhone only) */
   const prefetch = useCallback(() => {
-    if (!ios || !canSave || saveDataOn() || typeof navigator.canShare !== "function") return
+    if (variant === "social" || !ios || !canSave || saveDataOn() || typeof navigator.canShare !== "function") return
     void fetchFile()
-  }, [ios, canSave, fetchFile])
+  }, [variant, ios, canSave, fetchFile])
 
   // Forget the cached file if the tale changes
   useEffect(() => {
@@ -152,11 +155,11 @@ export function useSaveToPhone({
       return
     }
 
-    // Android: a real download (no page change), then it shows up in Photos / Gallery
-    if (isAndroid()) {
+    // Android (and the social copy everywhere else): a real download, no page change
+    if (isAndroid() || variant === "social") {
       setState("preparing")
       try {
-        const { url, filename } = await getSignedUrl(entryId, filenameHint)
+        const { url, filename } = await getSignedUrl(entryId, filenameHint, variant)
         const a = document.createElement("a")
         a.href = url
         a.download = filename
@@ -164,7 +167,11 @@ export function useSaveToPhone({
         document.body.appendChild(a)
         a.click()
         a.remove()
-        toast({ title: "Saving to your phone", description: "It'll be in Downloads and your Photos or Gallery app." })
+        toast(
+          isAndroid()
+            ? { title: "Saving to your phone", description: "It'll be in Downloads and your Photos or Gallery app." }
+            : { title: "Download started", description: "Look in your Downloads folder." },
+        )
       } catch (error) {
         const status = (error as { status?: number }).status
         toast({
@@ -179,7 +186,7 @@ export function useSaveToPhone({
     }
 
     onFallbackDownload()
-  }, [canSave, state, ios, share, fetchFile, onFallbackDownload, entryId, filenameHint, toast])
+  }, [canSave, state, ios, share, fetchFile, onFallbackDownload, entryId, filenameHint, variant, toast])
 
   /** Second tap after the file finished downloading (iPhone) */
   const saveReady = useCallback(async () => {

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Heart, Eye, Play, ExternalLink, Share2, Download } from "lucide-react"
+import { ArrowLeft, Heart, Eye, Play, ExternalLink, Share2, Download, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getPublicUrl } from "@/lib/supabase/url-utils"
 import { recordPublicViewClient, togglePublicLikeClient } from "@/lib/api/engagement"
@@ -10,6 +10,7 @@ import { getSessionId, hasLikedTale, toggleTaleLike } from "@/lib/session/client
 import { useToast } from "@/hooks/use-toast"
 import { getVoiceByValue } from "@/lib/voice-personalities"
 import { NARRATION_GENRES } from "@/lib/narration-genres"
+import { useSaveToPhone } from "@/components/reels/use-save-to-phone"
 
 interface PublicTale {
   id: string
@@ -252,33 +253,17 @@ export function PublicTaleViewer({ tale }: PublicTaleViewerProps) {
     }
   }
 
-  const handleDownload = async () => {
-    if (!videoUrl) return
-
-    try {
-      const response = await fetch(videoUrl)
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `${tale.title || petName}-tale.mp4`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
-
-      toast({
-        title: "Video downloaded",
-        description: "Tale saved to your device",
-      })
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to download video",
-        variant: "destructive",
-      })
-    }
-  }
+  // Save = the "for socials" copy (title + pettaleai.com burned in), the same flow as private tales:
+  // iPhone share sheet -> Save Video, Android/desktop download. Made on the first save, then reused.
+  const saver = useSaveToPhone({
+    entryId: tale.id,
+    filenameHint: `${petName}-${tale.title || "Pet Tale"}`.replace(/[^a-zA-Z0-9-]/g, "-"),
+    canSave: !!tale.merged_video_url,
+    onFallbackDownload: () => {
+      if (tale.merged_video_url) window.open(tale.merged_video_url, "_blank", "noopener")
+    },
+    variant: "social",
+  })
 
   const handleWatchAgain = () => {
     const video = videoRef.current
@@ -452,11 +437,49 @@ export function PublicTaleViewer({ tale }: PublicTaleViewerProps) {
             </div>
           </button>
 
-          <button onClick={handleDownload} className="flex flex-col items-center">
-            <div className="w-12 h-12 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center">
-              <Download className="h-7 w-7 text-white" />
-            </div>
-          </button>
+          {tale.merged_video_url && (
+            <button
+              onClick={saver.save}
+              disabled={saver.state === "preparing"}
+              aria-label={saver.isIOS ? "Save to Photos" : "Save video"}
+              className="flex flex-col items-center"
+            >
+              <div className="w-12 h-12 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center">
+                {saver.state === "preparing" ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-white" />
+                ) : (
+                  <Download className="h-7 w-7 text-white" />
+                )}
+              </div>
+              <span className="text-white text-xs mt-1 font-medium">
+                {saver.state === "preparing" ? "Making…" : "Save"}
+              </span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* The video finished after the tap expired: one more tap opens the share sheet (iPhone) */}
+      {saver.state === "ready-to-tap" && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50" onClick={saver.cancelReady}>
+          <div
+            className="w-full max-w-md rounded-t-3xl bg-white px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-5 text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-base font-semibold text-gray-900">This tale is ready to save</p>
+            <p className="mt-1 text-sm text-gray-500">Tap below, then choose &ldquo;Save Video&rdquo;.</p>
+            <button
+              type="button"
+              onClick={saver.saveReady}
+              className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal-600 text-[15px] font-semibold text-white active:bg-teal-700"
+            >
+              <Download className="h-5 w-5" />
+              Save to Photos
+            </button>
+            <button type="button" onClick={saver.cancelReady} className="mt-2 h-11 w-full text-sm font-medium text-gray-500">
+              Not now
+            </button>
+          </div>
         </div>
       )}
 
