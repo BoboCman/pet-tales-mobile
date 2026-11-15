@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast"
  * Elsewhere: the same download as the desktop button.
  */
 
-export type SaveState = "idle" | "preparing" | "ready-to-tap"
+export type SaveState = "idle" | "preparing" | "ready-to-tap" | "open-link"
 
 const MAX_PREFETCH_BYTES = 80 * 1024 * 1024
 
@@ -66,6 +66,8 @@ export function useSaveToPhone({
   const { toast } = useToast()
   const [state, setState] = useState<SaveState>("idle")
   const fileRef = useRef<File | null>(null)
+  /** When the file can't go to the share sheet: a link to open the video itself (Share > Save Video) */
+  const [linkUrl, setLinkUrl] = useState<string | null>(null)
   const pendingRef = useRef<Promise<File | null> | null>(null)
 
   const ios = typeof window !== "undefined" && isIOS()
@@ -135,36 +137,30 @@ export function useSaveToPhone({
   const save = useCallback(async () => {
     if (!canSave || state === "preparing") return
 
-    // iPhone: share sheet -> Save Video
+    // iPhone: share sheet -> Save Video. Every path ends in something the user can see: the share
+    // sheet, the "ready to save" sheet, an "open the video" sheet, or an error. Never a silent
+    // page change, and never the untitled video when the titled one was asked for.
     if (ios && typeof navigator.share === "function" && typeof navigator.canShare === "function") {
-      if (fileRef.current) {
-        if (!(await share(fileRef.current))) onFallbackDownload()
-        return
-      }
-      setState("preparing")
-      const file = await fetchFile()
-      if (!file) {
-        if (variant === "social") {
-          // Too big to hand to the share sheet (or it failed): open the titled copy itself, where
-          // Share > Save Video still works. Never fall back to the plain, untitled video.
-          try {
-            const { url } = await getSignedUrl(entryId, filenameHint, variant)
-            window.location.href = url
-          } catch {
-            toast({ title: "Couldn't make the Socials copy", description: "Please try again in a minute.", variant: "destructive" })
-          } finally {
-            setState("idle")
-          }
-          return
+      const offerLink = async () => {
+        try {
+          const { url } = await getSignedUrl(entryId, filenameHint, variant)
+          setLinkUrl(url)
+          setState("open-link")
+        } catch (error) {
+          const status = (error as { status?: number }).status
+          setState("idle")
+          toast({
+            title: status === 404 ? "Your tale is still being made" : "Couldn't save the video",
+            description: status === 404 ? "Try again in a minute." : "Please try again.",
+            variant: status === 404 ? "default" : "destructive",
+          })
         }
-        setState("idle")
-        onFallbackDownload()
-        return
       }
-      if (!(await share(file))) {
-        setState("idle")
-        onFallbackDownload()
-      }
+
+      setState("preparing")
+      const file = fileRef.current ?? (await fetchFile())
+      if (!file) return offerLink()
+      if (!(await share(file))) return offerLink()
       return
     }
 
@@ -203,11 +199,15 @@ export function useSaveToPhone({
 
   /** Second tap after the file finished downloading (iPhone) */
   const saveReady = useCallback(async () => {
-    if (fileRef.current) await share(fileRef.current)
-    else setState("idle")
-  }, [share])
+    if (fileRef.current && (await share(fileRef.current))) return
+    setState("idle")
+    toast({ title: "Couldn't open the share sheet", description: "Please tap Save again.", variant: "destructive" })
+  }, [share, toast])
 
-  const cancelReady = useCallback(() => setState("idle"), [])
+  const cancelReady = useCallback(() => {
+    setLinkUrl(null)
+    setState("idle")
+  }, [])
 
-  return { state, save, saveReady, cancelReady, prefetch, isIOS: ios }
+  return { state, save, saveReady, cancelReady, prefetch, linkUrl, isIOS: ios }
 }
