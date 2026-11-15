@@ -259,9 +259,9 @@ export function PublicTaleViewer({ tale }: PublicTaleViewerProps) {
     entryId: tale.id,
     filenameHint: `${petName}-${tale.title || "Pet Tale"}`.replace(/[^a-zA-Z0-9-]/g, "-"),
     canSave: !!tale.merged_video_url,
-    onFallbackDownload: () => {
-      if (tale.merged_video_url) window.open(tale.merged_video_url, "_blank", "noopener")
-    },
+    // Public tales are only ever saved with the title and pettaleai.com burned in, so there is no
+    // plain-video fallback here (the hook downloads or opens the titled copy on every device)
+    onFallbackDownload: () => {},
     variant: "social",
   })
 
@@ -459,23 +459,51 @@ export function PublicTaleViewer({ tale }: PublicTaleViewerProps) {
         </div>
       )}
 
-      {/* The video finished after the tap expired: one more tap opens the share sheet (iPhone) */}
-      {saver.state === "ready-to-tap" && (
+      {/* The titled copy is made on the first tap: say so while it's being made */}
+      {saver.state === "preparing" && (
+        <div className="fixed inset-x-3 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-[60] mx-auto flex max-w-md items-center gap-3 rounded-2xl bg-white/95 px-4 py-3 shadow-lg backdrop-blur dark:bg-gray-900/95">
+          <Loader2 className="h-5 w-5 shrink-0 animate-spin text-teal-600" />
+          <div className="min-w-0 text-left">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">Getting your copy ready…</p>
+            <p className="text-xs text-gray-500">With the title and pettaleai.com. Up to a minute the first time.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Ready: one more tap opens the share sheet, or open the video itself (iPhone) */}
+      {(saver.state === "ready-to-tap" || saver.state === "open-link") && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50" onClick={saver.cancelReady}>
           <div
-            className="w-full max-w-md rounded-t-3xl bg-white px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-5 text-center"
+            className="w-full max-w-md rounded-t-3xl bg-white px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-5 text-center dark:bg-gray-900"
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="text-base font-semibold text-gray-900">This tale is ready to save</p>
-            <p className="mt-1 text-sm text-gray-500">Tap below, then choose &ldquo;Save Video&rdquo;.</p>
-            <button
-              type="button"
-              onClick={saver.saveReady}
-              className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal-600 text-[15px] font-semibold text-white active:bg-teal-700"
-            >
-              <Download className="h-5 w-5" />
-              Save to Photos
-            </button>
+            <p className="text-base font-semibold text-gray-900 dark:text-white">Your tale is ready to save</p>
+            <p className="mt-1 text-sm text-gray-500">
+              {saver.state === "open-link"
+                ? "Open the video, then tap Share and choose \u201cSave Video\u201d."
+                : "Tap below, then choose \u201cSave Video\u201d."}
+            </p>
+            {saver.state === "open-link" && saver.linkUrl ? (
+              <a
+                href={saver.linkUrl}
+                target="_blank"
+                rel="noopener"
+                onClick={saver.cancelReady}
+                className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal-600 text-[15px] font-semibold text-white active:bg-teal-700"
+              >
+                <Download className="h-5 w-5" />
+                Open video
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={saver.saveReady}
+                className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal-600 text-[15px] font-semibold text-white active:bg-teal-700"
+              >
+                <Download className="h-5 w-5" />
+                Save to Photos
+              </button>
+            )}
             <button type="button" onClick={saver.cancelReady} className="mt-2 h-11 w-full text-sm font-medium text-gray-500">
               Not now
             </button>

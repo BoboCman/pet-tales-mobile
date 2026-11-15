@@ -922,7 +922,7 @@ export default function ReelDetailPage() {
         viewCount={viewCount}
         onLike={handleLike}
         onShare={handleShare}
-        onDownload={() => handleDownload(reel.id)}
+        onDownload={(kind) => handleDownload(reel.id, kind)}
         onShareFile={() => handleShareVideoFile(reel.id)}
         supportsFileShare={supportsFileShare}
         isSharingFile={isSharingFile}

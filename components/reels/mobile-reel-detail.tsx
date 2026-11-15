@@ -43,7 +43,8 @@ interface MobileReelDetailProps {
   viewCount: number
   onLike: () => void
   onShare: () => void
-  onDownload?: () => void
+  /** "social" = the copy with the title burned in */
+  onDownload?: (kind?: "original" | "social") => void
   onShareFile?: () => void
   supportsFileShare?: boolean
   isSharingFile?: boolean
@@ -115,7 +116,7 @@ export function MobileReelDetail({
     entryId: reel.id,
     filenameHint: `${petName}-${reel.title || "Pet Tale"}-${dateStamp}`.replace(/[^a-zA-Z0-9-]/g, "-"),
     canSave: hasDownloadableVideo && !!onDownload,
-    onFallbackDownload: () => onDownload?.(),
+    onFallbackDownload: () => onDownload?.("original"),
   })
   const { prefetch } = saver
   // The same tale with its title burned in, for TikTok, Reels and ads
@@ -123,10 +124,11 @@ export function MobileReelDetail({
     entryId: reel.id,
     filenameHint: `${petName}-${reel.title || "Pet Tale"}-${dateStamp}`.replace(/[^a-zA-Z0-9-]/g, "-"),
     canSave: hasDownloadableVideo && !!onDownload,
-    onFallbackDownload: () => onDownload?.(),
+    // If the phone can't take the file directly, download the titled copy (never the plain one)
+    onFallbackDownload: () => onDownload?.("social"),
     variant: "social",
   })
-  const readySaver = saver.state === "ready-to-tap" ? saver : socialSaver.state === "ready-to-tap" ? socialSaver : null
+  const sheetSaver = [saver, socialSaver].find((s) => s.state === "ready-to-tap" || s.state === "open-link") ?? null
 
   // Once the tale has loaded, quietly get the file ready so Save opens the share sheet instantly
   const videoLoaded = !isLoading || isPlaying
@@ -445,24 +447,63 @@ export function MobileReelDetail({
         )}
       </div>
 
-      {/* The video finished downloading after the tap expired: one more tap opens the share sheet */}
-      {readySaver && (
-        <div className="absolute inset-0 z-30 flex items-end bg-black/50" onClick={readySaver.cancelReady}>
+      {/* Every save shows its progress, so the button never just goes dark */}
+      {saver.state === "preparing" && (
+        <div className="absolute inset-x-3 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-30 flex items-center gap-3 rounded-2xl bg-white/95 px-4 py-3 shadow-lg backdrop-blur dark:bg-gray-900/95">
+          <Loader2 className="h-5 w-5 shrink-0 animate-spin text-teal-600" />
+          <div className="min-w-0 text-left">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">Getting your video…</p>
+            <p className="text-xs text-gray-500">Your phone will ask where to save it in a moment.</p>
+          </div>
+        </div>
+      )}
+
+      {/* The titled copy is made on the first tap and can take up to a minute: say so */}
+      {socialSaver.state === "preparing" && (
+        <div className="absolute inset-x-3 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-30 flex items-center gap-3 rounded-2xl bg-white/95 px-4 py-3 shadow-lg backdrop-blur dark:bg-gray-900/95">
+          <Loader2 className="h-5 w-5 shrink-0 animate-spin text-teal-600" />
+          <div className="min-w-0 text-left">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">Making your Socials copy…</p>
+            <p className="text-xs text-gray-500">Adding the title and pettaleai.com. Up to a minute the first time, then it&apos;s instant.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Ready: one more tap opens the share sheet, or open the video itself */}
+      {sheetSaver && (
+        <div className="absolute inset-0 z-30 flex items-end bg-black/50" onClick={sheetSaver.cancelReady}>
           <div
             className="w-full rounded-t-3xl bg-white px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-5 text-center dark:bg-gray-900"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-base font-semibold text-gray-900 dark:text-white">Your tale is ready to save</p>
-            <p className="mt-1 text-sm text-gray-500">Tap below, then choose &ldquo;Save Video&rdquo;.</p>
-            <button
-              type="button"
-              onClick={readySaver.saveReady}
-              className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal-600 text-[15px] font-semibold text-white active:bg-teal-700"
-            >
-              <Download className="h-5 w-5" />
-              Save to Photos
-            </button>
-            <button type="button" onClick={readySaver.cancelReady} className="mt-2 h-11 w-full text-sm font-medium text-gray-500">
+            <p className="mt-1 text-sm text-gray-500">
+              {sheetSaver.state === "open-link"
+                ? "Open the video, then tap Share and choose \u201cSave Video\u201d."
+                : "Tap below, then choose \u201cSave Video\u201d."}
+            </p>
+            {sheetSaver.state === "open-link" && sheetSaver.linkUrl ? (
+              <a
+                href={sheetSaver.linkUrl}
+                target="_blank"
+                rel="noopener"
+                onClick={sheetSaver.cancelReady}
+                className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal-600 text-[15px] font-semibold text-white active:bg-teal-700"
+              >
+                <Download className="h-5 w-5" />
+                Open video
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={sheetSaver.saveReady}
+                className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal-600 text-[15px] font-semibold text-white active:bg-teal-700"
+              >
+                <Download className="h-5 w-5" />
+                Save to Photos
+              </button>
+            )}
+            <button type="button" onClick={sheetSaver.cancelReady} className="mt-2 h-11 w-full text-sm font-medium text-gray-500">
               Not now
             </button>
           </div>
