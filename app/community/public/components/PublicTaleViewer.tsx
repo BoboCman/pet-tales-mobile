@@ -459,6 +459,17 @@ export function PublicTaleViewer({ tale }: PublicTaleViewerProps) {
         </div>
       )}
 
+      {/* The titled copy is made on the first tap: say so while it's being made */}
+      {saver.state === "preparing" && (
+        <div className="fixed inset-x-3 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-[60] mx-auto flex max-w-md items-center gap-3 rounded-2xl bg-white/95 px-4 py-3 shadow-lg backdrop-blur dark:bg-gray-900/95">
+          <Loader2 className="h-5 w-5 shrink-0 animate-spin text-teal-600" />
+          <div className="min-w-0 text-left">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">Getting your copy ready…</p>
+            <p className="text-xs text-gray-500">With the title and pettaleai.com. Up to a minute the first time.</p>
+          </div>
+        </div>
+      )}
+
       {/* The video finished after the tap expired: one more tap opens the share sheet (iPhone) */}
       {saver.state === "ready-to-tap" && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50" onClick={saver.cancelReady}>

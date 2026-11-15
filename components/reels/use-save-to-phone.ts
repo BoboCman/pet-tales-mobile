@@ -144,6 +144,19 @@ export function useSaveToPhone({
       setState("preparing")
       const file = await fetchFile()
       if (!file) {
+        if (variant === "social") {
+          // Too big to hand to the share sheet (or it failed): open the titled copy itself, where
+          // Share > Save Video still works. Never fall back to the plain, untitled video.
+          try {
+            const { url } = await getSignedUrl(entryId, filenameHint, variant)
+            window.location.href = url
+          } catch {
+            toast({ title: "Couldn't make the Socials copy", description: "Please try again in a minute.", variant: "destructive" })
+          } finally {
+            setState("idle")
+          }
+          return
+        }
         setState("idle")
         onFallbackDownload()
         return

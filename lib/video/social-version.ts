@@ -38,11 +38,18 @@ function socialPath(entryId: string, title: string) {
   return { folder: "social", name: `pet-tale-${entryId}-${v}.mp4` }
 }
 
-async function fetchRendered(url: string): Promise<Buffer> {
+/** The download request is cut off at 120s, so all render attempts together must finish well before that */
+const RENDER_BUDGET_MS = 95_000
+
+async function fetchRendered(url: string, deadline: number): Promise<Buffer> {
   // Cloudinary renders on first request; big jobs answer 420/423 until they're done
   const waits = [0, 5000, 10000, 15000, 20000, 25000]
   let last = ""
   for (const wait of waits) {
+    if (Date.now() + wait > deadline) {
+      last = last || "out of time"
+      break
+    }
     if (wait) await new Promise((r) => setTimeout(r, wait))
     const res = await fetch(url)
     if (res.ok) return Buffer.from(await res.arrayBuffer())
@@ -143,16 +150,18 @@ export async function ensureSocialVersion(entry: {
     ]
     let video: Buffer | null = null
     let lastError: unknown
+    const deadline = Date.now() + RENDER_BUDGET_MS
     for (const [font, look] of attempts) {
+      if (Date.now() > deadline - 5000) break
       try {
-        video = await fetchRendered(build(font, look))
+        video = await fetchRendered(build(font, look), deadline)
         break
       } catch (error) {
         lastError = error
         console.warn(`[social-version] ${font}/${look} render failed:`, error)
       }
     }
-    if (!video) throw lastError
+    if (!video) throw lastError ?? new Error("Social render ran out of time")
 
     const { error } = await supabaseAdmin.storage.from(BUCKET).upload(path, video, {
       contentType: "video/mp4",

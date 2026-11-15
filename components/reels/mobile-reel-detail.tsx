@@ -43,7 +43,8 @@ interface MobileReelDetailProps {
   viewCount: number
   onLike: () => void
   onShare: () => void
-  onDownload?: () => void
+  /** "social" = the copy with the title burned in */
+  onDownload?: (kind?: "original" | "social") => void
   onShareFile?: () => void
   supportsFileShare?: boolean
   isSharingFile?: boolean
@@ -115,7 +116,7 @@ export function MobileReelDetail({
     entryId: reel.id,
     filenameHint: `${petName}-${reel.title || "Pet Tale"}-${dateStamp}`.replace(/[^a-zA-Z0-9-]/g, "-"),
     canSave: hasDownloadableVideo && !!onDownload,
-    onFallbackDownload: () => onDownload?.(),
+    onFallbackDownload: () => onDownload?.("original"),
   })
   const { prefetch } = saver
   // The same tale with its title burned in, for TikTok, Reels and ads
@@ -123,7 +124,8 @@ export function MobileReelDetail({
     entryId: reel.id,
     filenameHint: `${petName}-${reel.title || "Pet Tale"}-${dateStamp}`.replace(/[^a-zA-Z0-9-]/g, "-"),
     canSave: hasDownloadableVideo && !!onDownload,
-    onFallbackDownload: () => onDownload?.(),
+    // If the phone can't take the file directly, download the titled copy (never the plain one)
+    onFallbackDownload: () => onDownload?.("social"),
     variant: "social",
   })
   const readySaver = saver.state === "ready-to-tap" ? saver : socialSaver.state === "ready-to-tap" ? socialSaver : null
@@ -444,6 +446,19 @@ export function MobileReelDetail({
           </div>
         )}
       </div>
+
+      {/* The titled copy is made on the first tap and can take up to a minute: say so */}
+      {socialSaver.state === "preparing" && (
+        <div className="absolute inset-x-3 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-30 flex items-center gap-3 rounded-2xl bg-white/95 px-4 py-3 shadow-lg backdrop-blur dark:bg-gray-900/95">
+          <Loader2 className="h-5 w-5 shrink-0 animate-spin text-teal-600" />
+          <div className="min-w-0 text-left">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">Making your Socials copy…</p>
+            <p className="text-xs text-gray-500">
+              Adding the title and pettaleai.com. Up to a minute the first time, then it&apos;s instant.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* The video finished downloading after the tap expired: one more tap opens the share sheet */}
       {readySaver && (
